@@ -355,18 +355,21 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
                     progressFill.style.width = '100%';
                     if (xhr.status !== 200) {
                         var blob = xhr.response;
-                        if (blob && blob.text) {
-                            blob.text().then(function(t) {
-                                try {
-                                    var err = JSON.parse(t);
-                                    showError(err.error || ('Error ' + xhr.status + ': ' + (t ? t.substring(0, 300) : 'Processing failed')));
-                                } catch (_) {
-                                    var fallback = 'Processing failed. Your file needs columns: Parcel Number and Parcel Notes (or DEP). Use .xlsx or .xlsm.';
-                                    showError(t && t.length < 600 ? ('Error: ' + t) : fallback);
-                                }
-                            }).catch(function() { showError('Processing failed. Need Parcel Number + Parcel Notes (or DEP). Use .xlsx or .xlsm.'); });
+                        function showServerError(t) {
+                            try {
+                                var err = JSON.parse(t);
+                                showError(err.error || ('Error ' + xhr.status));
+                            } catch (_) {
+                                var fallback = 'Processing failed. Need Parcel column + DEP column (e.g. Parcel Notes). Use .xlsx or .xlsm.';
+                                showError((t && t.length > 0 && t.length < 800) ? t : fallback);
+                            }
+                        }
+                        if (blob && typeof blob.text === 'function') {
+                            blob.text().then(showServerError).catch(function() {
+                                showError('Processing failed (status ' + xhr.status + '). Check file has Parcel + DEP columns, .xlsx or .xlsm.');
+                            });
                         } else {
-                            showError('Processing failed (status ' + xhr.status + ')');
+                            showError('Processing failed (status ' + xhr.status + '). Check file columns and format.');
                         }
                         loadingOverlay.classList.remove('active');
                         return;

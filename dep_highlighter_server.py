@@ -49,15 +49,28 @@ def highlight_logic(df):
             parcel_notes_col = col
         elif "PARCEL" in col_upper and "NUMBER" in col_upper:
             parcel_col = col
-    if parcel_notes_col is None and any("dep" in str(c).lower() for c in df.columns):
+    if parcel_notes_col is None:
         for col in df.columns:
             if "dep" in str(col).lower():
                 parcel_notes_col = col
                 break
+    if parcel_col is None:
+        for col in df.columns:
+            c = str(col).lower()
+            if "parcel" in c and ("number" in c or "#" in c or "no" in c or "id" in c):
+                parcel_col = col
+                break
+        if parcel_col is None:
+            for col in df.columns:
+                if "parcel" in str(col).lower():
+                    parcel_col = col
+                    break
     if parcel_notes_col is None or parcel_col is None:
+        cols_preview = ", ".join(str(c) for c in list(df.columns)[:15])
+        if len(df.columns) > 15:
+            cols_preview += ", ..."
         raise ValueError(
-            "Required columns not found. Need 'Parcel Number' and 'Parcel Notes' (or a column named DEP). "
-            "Same as the Windows DEP Highlighter."
+            "Required columns not found. Need Parcel (e.g. Parcel Number) and DEP (e.g. Parcel Notes or DEP). Your columns: " + cols_preview
         )
 
     parcel_notes = df[parcel_notes_col].fillna("").astype(str).str.strip().str.upper()
@@ -156,6 +169,9 @@ def process_file():
             return jsonify({"error": "Old .xls not supported. Save as .xlsx or .xlsm"}), 400
 
         file_bytes = file.read()
+        if not file_bytes or len(file_bytes) < 100:
+            return jsonify({"error": "File is empty or too small. Use a valid .xlsx or .xlsm file."}), 400
+
         output_buffer, output_filename, highlighted_count, total_rows = process_excel_file(
             file_bytes, file.filename
         )
@@ -168,9 +184,9 @@ def process_file():
     except ValueError as ve:
         return jsonify({"error": str(ve)}), 400
     except Exception as e:
-        msg = str(e)
-        if not msg:
-            msg = traceback.format_exc()[:500]
+        msg = str(e).strip() or "Processing failed"
+        if len(msg) > 400:
+            msg = msg[:397] + "..."
         print("Process error:", msg)
         print(traceback.format_exc())
         return jsonify({"error": msg}), 500
