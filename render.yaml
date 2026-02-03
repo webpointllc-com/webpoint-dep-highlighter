@@ -2,8 +2,6 @@ services:
   - type: web
     name: webpoint-dep-highlighter
     runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn -w 1 -b 0.0.0.0:$PORT --timeout 120 dep_highlighter_server:app
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.7
