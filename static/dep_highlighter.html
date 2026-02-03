@@ -359,10 +359,14 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
                             blob.text().then(function(t) {
                                 try {
                                     var err = JSON.parse(t);
-                                    showError(err.error || 'Processing failed');
-                                } catch (_) { showError(t || 'Processing failed'); }
-                            }).catch(function() { showError('Processing failed'); });
-                        } else { showError('Processing failed'); }
+                                    showError(err.error || ('Error ' + xhr.status + ': ' + (t ? t.substring(0, 300) : 'Processing failed')));
+                                } catch (_) {
+                                    showError(t ? ('Error: ' + t.substring(0, 400)) : 'Processing failed (status ' + xhr.status + ')');
+                                }
+                            }).catch(function() { showError('Processing failed (status ' + xhr.status + ')'); });
+                        } else {
+                            showError('Processing failed (status ' + xhr.status + ')');
+                        }
                         loadingOverlay.classList.remove('active');
                         return;
                     }

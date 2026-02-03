@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
 DEP Highlighter Backend Server
-Preserves ALL Excel features including VBA macros, formulas, charts, images, etc.
+Same logic as working Windows app: Parcel Notes + Parcel Number, consecutive DEP rows highlighted.
 """
 
-from flask import Flask, request, send_file, jsonify, send_from_directory
+from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
+import pandas as pd
 import openpyxl
 from openpyxl.styles import PatternFill
 import io
@@ -16,7 +17,6 @@ from datetime import datetime
 
 app = Flask(__name__, static_folder=None)
 
-# Allow requests from Webpoint Toolbox on SquareSpace (webpointllc.com/webpoint-toolbox)
 CORS_ORIGINS = [
     "https://webpointllc.com",
     "https://www.webpointllc.com",
@@ -27,225 +27,166 @@ CORS_ORIGINS = [
 ]
 CORS(app, origins=CORS_ORIGINS, supports_credentials=False)
 
-# Directory containing this script (backend); parent/frontend for local, same dir for deploy
 _BASE = Path(__file__).resolve().parent
 _FRONTEND_HTML = _BASE / "static" / "dep_highlighter.html"
 if not _FRONTEND_HTML.exists():
     _FRONTEND_HTML = _BASE.parent / "frontend" / "dep_highlighter.html"
 
-# Yellow highlight for DEP duplicates
 YELLOW_FILL = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
 
-def find_column_index(sheet, possible_names):
-    """Find column index by header (case-insensitive). possible_names = list of strings to try."""
-    if isinstance(possible_names, str):
-        possible_names = [possible_names]
-    header_row = sheet[1]
-    for idx, cell in enumerate(header_row, 1):
-        if not cell.value:
-            continue
-        val = str(cell.value).lower()
-        for name in possible_names:
-            if name.lower() in val:
-                return idx
-    return None
+def highlight_logic(df):
+    """Same as Windows DEP Highlighter: consecutive rows with DEP in Parcel Notes and matching Parcel Number."""
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+
+    parcel_notes_col = None
+    parcel_col = None
+    for col in df.columns:
+        col_upper = str(col).upper().strip()
+        if "PARCEL" in col_upper and "NOTES" in col_upper:
+            parcel_notes_col = col
+        elif "PARCEL" in col_upper and "NUMBER" in col_upper:
+            parcel_col = col
+    if parcel_notes_col is None and any("dep" in str(c).lower() for c in df.columns):
+        for col in df.columns:
+            if "dep" in str(col).lower():
+                parcel_notes_col = col
+                break
+    if parcel_notes_col is None or parcel_col is None:
+        raise ValueError(
+            "Required columns not found. Need 'Parcel Number' and 'Parcel Notes' (or a column named DEP). "
+            "Same as the Windows DEP Highlighter."
+        )
+
+    parcel_notes = df[parcel_notes_col].fillna("").astype(str).str.strip().str.upper()
+    parcel = df[parcel_col].fillna("").astype(str).str.strip()
+
+    flags = [False] * len(df)
+    for i in range(1, len(df)):
+        row_i_dep = parcel_notes.iloc[i] == "DEP"
+        row_i_minus_1_dep = parcel_notes.iloc[i - 1] == "DEP"
+        parcel_i = parcel.iloc[i]
+        parcel_i_minus_1 = parcel.iloc[i - 1]
+        parcels_match = (parcel_i == parcel_i_minus_1) and parcel_i != "" and parcel_i != "NAN"
+        if row_i_dep and row_i_minus_1_dep and parcels_match:
+            flags[i] = True
+            flags[i - 1] = True
+    df["_highlight"] = flags
+    return df
 
 
 def process_excel_file(file_bytes, original_filename):
-    """
-    Process Excel file and highlight consecutive duplicate DEP parcels
-    PRESERVES: VBA, macros, formulas, charts, images, everything
-    """
+    """Read with pandas (same as Windows), get rows to highlight, apply with openpyxl, return buffer."""
     file_ext = Path(original_filename).suffix.lower()
     if file_ext == ".xls":
-        raise ValueError("Old .xls format is not supported. Please save the file as .xlsx or .xlsm and try again.")
+        raise ValueError("Old .xls is not supported. Save as .xlsx or .xlsm.")
 
     buf = io.BytesIO(file_bytes)
-    # .xlsx: use keep_vba=False to avoid load failures. .xlsm: try keep_vba=True first.
-    keep_vba = file_ext == ".xlsm"
     try:
-        wb = openpyxl.load_workbook(buf, keep_vba=keep_vba)
+        df = pd.read_excel(buf, engine="openpyxl")
+    except Exception as e:
+        raise ValueError(f"Cannot read Excel file. Is it a valid .xlsx or .xlsm? Details: {e}")
+
+    if df is None or len(df) == 0:
+        raise ValueError("The file has no data rows.")
+
+    df_processed = highlight_logic(df)
+    rows_to_highlight = []
+    for pandas_idx, row in df_processed.iterrows():
+        if row["_highlight"]:
+            excel_row = int(pandas_idx) + 2
+            rows_to_highlight.append(excel_row)
+
+    buf.seek(0)
+    try:
+        wb = openpyxl.load_workbook(buf, keep_vba=(file_ext == ".xlsm"))
     except Exception:
         buf.seek(0)
-        try:
-            wb = openpyxl.load_workbook(buf, keep_vba=False)
-        except Exception as e:
-            raise ValueError(f"Could not open the Excel file. Make sure it is a valid .xlsx or .xlsm file. Details: {e}")
+        wb = openpyxl.load_workbook(buf, keep_vba=False)
 
     sheet = wb.active
-    if sheet.max_row < 2:
-        raise ValueError("The sheet has no data rows (only a header or empty). Need at least one data row.")
-
-    # Find header row: scan first 10 rows for Parcel + DEP (handles title rows in county files).
-    parcel_col = None
-    dep_col = None
-    header_row_idx = 1
-    for row_num in range(1, min(11, sheet.max_row + 1)):
-        row = sheet[row_num]
-        p_col = None
-        d_col = None
-        for idx, cell in enumerate(row, 1):
-            if not cell.value:
-                continue
-            val = str(cell.value).lower()
-            # Parcel: same as working Windows app (Parcel Number)
-            if not p_col and any(n in val for n in ["parcel number", "parcel #", "parcel", "parcel id", "parcel no"]):
-                p_col = idx
-            # DEP column: "dep" OR "parcel notes" (working app uses "Parcel Notes" for DEP value)
-            if not d_col and ("dep" in val or ("parcel" in val and "notes" in val)):
-                d_col = idx
-        if p_col and d_col:
-            parcel_col = p_col
-            dep_col = d_col
-            header_row_idx = row_num
-            break
-
-    if not parcel_col or not dep_col:
-        raise ValueError(
-            "Required columns not found. Need 'Parcel Number' (or Parcel) and 'DEP' or 'Parcel Notes' "
-            "in the first 10 rows. Same as the Windows DEP Highlighter."
-        )
-
-    data_start = header_row_idx + 1
-    highlighted_count = 0
-    total_rows = sheet.max_row
-
-    for row_idx in range(data_start, total_rows):
-        current_parcel = sheet.cell(row_idx, parcel_col).value
-        current_dep = str(sheet.cell(row_idx, dep_col).value or "").strip()
-        
-        next_parcel = sheet.cell(row_idx + 1, parcel_col).value
-        next_dep = str(sheet.cell(row_idx + 1, dep_col).value or "").strip()
-        
-        # Check BOTH conditions
-        if (current_parcel == next_parcel and 
-            current_dep.upper() == "DEP" and 
-            next_dep.upper() == "DEP"):
-            
-            # Highlight BOTH rows - entire row yellow
+    for row_num in rows_to_highlight:
+        if row_num <= sheet.max_row:
             for col in range(1, sheet.max_column + 1):
-                sheet.cell(row_idx, col).fill = YELLOW_FILL
-                sheet.cell(row_idx + 1, col).fill = YELLOW_FILL
-            
-            highlighted_count += 2
-    
-    # Create output filename
+                sheet.cell(row_num, col).fill = YELLOW_FILL
+
     base_name = Path(original_filename).stem
     extension = Path(original_filename).suffix
     output_filename = f"{base_name}_WEBPT.processed{extension}"
-    
-    # Save to bytes buffer with VBA preservation
     output_buffer = io.BytesIO()
     wb.save(output_buffer)
     output_buffer.seek(0)
-    
-    return output_buffer, output_filename, highlighted_count, total_rows
+    return output_buffer, output_filename, len(rows_to_highlight), len(df)
 
 
-@app.route('/health', methods=['GET'])
+@app.errorhandler(500)
+def handle_500(e):
+    return jsonify({"error": str(e) if str(e) else "Internal server error"}), 500
+
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    return jsonify({"error": str(e)}), 500
+
+
+@app.route("/health", methods=["GET"])
 def health_check():
-    """Health check endpoint"""
     return jsonify({
-        'status': 'healthy',
-        'service': 'DEP Highlighter',
-        'timestamp': datetime.now().isoformat()
+        "status": "healthy",
+        "service": "DEP Highlighter",
+        "timestamp": datetime.now().isoformat(),
     })
 
 
-@app.route('/process', methods=['POST'])
+@app.route("/process", methods=["POST"])
 def process_file():
-    """
-    Main processing endpoint
-    Accepts Excel file, returns highlighted clone with _WEBPT.processed suffix
-    """
-    
     try:
-        # Validate request
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file provided'}), 400
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            return jsonify({'error': 'Empty filename'}), 400
-        
-        # Validate file extension
-        allowed_extensions = {'.xlsx', '.xlsm', '.xls'}
+        if "file" not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No file selected"}), 400
+
         file_ext = Path(file.filename).suffix.lower()
-        
-        if file_ext not in allowed_extensions:
-            return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
-        
-        # Read file bytes
+        if file_ext not in (".xlsx", ".xlsm", ".xls"):
+            return jsonify({"error": "Invalid file type. Use .xlsx or .xlsm"}), 400
+        if file_ext == ".xls":
+            return jsonify({"error": "Old .xls not supported. Save as .xlsx or .xlsm"}), 400
+
         file_bytes = file.read()
-        
-        # Process the Excel file
         output_buffer, output_filename, highlighted_count, total_rows = process_excel_file(
-            file_bytes, 
-            file.filename
+            file_bytes, file.filename
         )
-        
-        # Return processed file
         return send_file(
             output_buffer,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True,
-            download_name=output_filename
+            download_name=output_filename,
         )
-    
     except ValueError as ve:
-        return jsonify({'error': str(ve)}), 400
-    
+        return jsonify({"error": str(ve)}), 400
     except Exception as e:
-        print(f"Error processing file: {str(e)}")
+        msg = str(e)
+        if not msg:
+            msg = traceback.format_exc()[:500]
+        print("Process error:", msg)
         print(traceback.format_exc())
-        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
+        return jsonify({"error": msg}), 500
 
 
-@app.route('/', methods=['GET'])
+@app.route("/", methods=["GET"])
 def index():
-    """Serve frontend HTML if present, else API info JSON"""
     if _FRONTEND_HTML.exists():
-        return send_file(str(_FRONTEND_HTML), mimetype='text/html')
+        return send_file(str(_FRONTEND_HTML), mimetype="text/html")
     return jsonify({
-        'service': 'Webpoint LLC - DEP Highlighter API',
-        'version': '1.0.0',
-        'endpoints': {
-            '/health': 'Health check',
-            '/process': 'POST - Upload Excel file for processing'
-        },
-        'features': [
-            'Preserves VBA macros',
-            'Preserves formulas',
-            'Preserves charts and images',
-            'Preserves all hidden code',
-            'Highlights consecutive duplicate DEP parcels',
-            'Returns cloned document with _WEBPT.processed suffix'
-        ]
+        "service": "Webpoint LLC - DEP Highlighter API",
+        "version": "1.0.0",
+        "endpoints": {"/health": "GET", "/process": "POST"},
     })
 
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('DEBUG', 'False').lower() == 'true'
-    
-    print(f"""
-╔════════════════════════════════════════════════════════════╗
-║                                                            ║
-║           WEBPOINT LLC - DEP HIGHLIGHTER API               ║
-║                                                            ║
-║  Status: RUNNING                                           ║
-║  Port: {port}                                                ║
-║  Endpoint: http://localhost:{port}/process                   ║
-║                                                            ║
-║  Features:                                                 ║
-║  ✓ Preserves VBA macros                                    ║
-║  ✓ Preserves formulas & charts                             ║
-║  ✓ Highlights duplicate DEP parcels                        ║
-║  ✓ Returns _WEBPT.processed files                          ║
-║                                                            ║
-╚════════════════════════════════════════════════════════════╝
-    """)
-    
-    app.run(host='0.0.0.0', port=port, debug=debug)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("DEBUG", "false").lower() == "true"
+    app.run(host="0.0.0.0", port=port, debug=debug)
