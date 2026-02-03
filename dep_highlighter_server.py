@@ -2,7 +2,9 @@
 """
 DEP Highlighter Backend Server
 Same logic as working Windows app: Parcel Notes + Parcel Number, consecutive DEP rows highlighted.
-Deploy: push -> GitHub Action -> Render deploy hook -> live. (browser+terminal flow)
+All processing runs on the server; the browser only uploads the file and downloads the result.
+User device (Mac, Windows, etc.) does not affect processing — only the server does the work.
+Deploy: push -> GitHub Action -> Render deploy hook -> live.
 """
 
 from flask import Flask, request, send_file, jsonify
@@ -12,6 +14,7 @@ import openpyxl
 from openpyxl.styles import PatternFill
 import io
 import os
+import tempfile
 from pathlib import Path
 import traceback
 from datetime import datetime
@@ -91,14 +94,15 @@ def highlight_logic(df):
 
 
 def process_excel_file(file_bytes, original_filename):
-    """Read with pandas (same as Windows), get rows to highlight, apply with openpyxl, return buffer."""
+    """Read with pandas, run highlight logic, build a NEW workbook from scratch with yellow fill.
+    Output is minimal valid xlsx so Excel on Mac and Windows opens it."""
     file_ext = Path(original_filename).suffix.lower()
     if file_ext == ".xls":
         raise ValueError("Old .xls is not supported. Save as .xlsx or .xlsm.")
 
     buf = io.BytesIO(file_bytes)
     try:
-        df = pd.read_excel(buf, engine="openpyxl")
+        df = pd.read_excel(buf, engine="openpyxl", sheet_name=0)
     except Exception as e:
         raise ValueError(f"Cannot read Excel file. Is it a valid .xlsx or .xlsm? Details: {e}")
 
@@ -106,32 +110,50 @@ def process_excel_file(file_bytes, original_filename):
         raise ValueError("The file has no data rows.")
 
     df_processed = highlight_logic(df)
-    rows_to_highlight = []
+    rows_to_highlight = set()
     for pandas_idx, row in df_processed.iterrows():
         if row["_highlight"]:
-            excel_row = int(pandas_idx) + 2
-            rows_to_highlight.append(excel_row)
+            rows_to_highlight.add(int(pandas_idx))
 
-    buf.seek(0)
-    try:
-        wb = openpyxl.load_workbook(buf, keep_vba=(file_ext == ".xlsm"))
-    except Exception:
-        buf.seek(0)
-        wb = openpyxl.load_workbook(buf, keep_vba=False)
-
-    sheet = wb.active
-    for row_num in rows_to_highlight:
-        if row_num <= sheet.max_row:
-            for col in range(1, sheet.max_column + 1):
-                sheet.cell(row_num, col).fill = YELLOW_FILL
+    # Build from scratch: new workbook, one sheet, data + yellow fill. Opens in Excel Mac/Windows.
+    data_cols = [c for c in df_processed.columns if c != "_highlight"]
+    col_count = len(data_cols)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    if ws is None:
+        ws = wb.create_sheet("Sheet1", 0)
+    for c, col_name in enumerate(data_cols, 1):
+        ws.cell(row=1, column=c, value=col_name)
+    for pandas_idx, row in df_processed.iterrows():
+        excel_row = int(pandas_idx) + 2
+        for c, col in enumerate(data_cols, 1):
+            ws.cell(row=excel_row, column=c, value=row[col])
+            if pandas_idx in rows_to_highlight:
+                ws.cell(row=excel_row, column=c).fill = YELLOW_FILL
 
     base_name = Path(original_filename).stem
-    extension = Path(original_filename).suffix
-    output_filename = f"{base_name}_WEBPT.processed{extension}"
-    output_buffer = io.BytesIO()
-    wb.save(output_buffer)
-    output_buffer.seek(0)
-    return output_buffer, output_filename, len(rows_to_highlight), len(df)
+    output_filename = f"{base_name}_WEBPT.processed.xlsx"
+    tmp = None
+    try:
+        fd, tmp = tempfile.mkstemp(suffix=".xlsx")
+        os.close(fd)
+        wb.save(tmp)
+        with open(tmp, "rb") as f:
+            output_bytes = f.read()
+    except Exception:
+        output_bytes = None
+    finally:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+    if not output_bytes:
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        output_bytes = buf.getvalue()
+    return io.BytesIO(output_bytes), output_filename, len(rows_to_highlight), len(df), len(output_bytes)
 
 
 @app.errorhandler(500)
@@ -172,7 +194,7 @@ def process_file():
         if not file_bytes or len(file_bytes) < 100:
             return jsonify({"error": "File is empty or too small. Use a valid .xlsx or .xlsm file."}), 400
 
-        output_buffer, output_filename, highlighted_count, total_rows = process_excel_file(
+        output_buffer, output_filename, highlighted_count, total_rows, content_length = process_excel_file(
             file_bytes, file.filename
         )
         return send_file(
@@ -180,6 +202,7 @@ def process_file():
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True,
             download_name=output_filename,
+            content_length=content_length,
         )
     except ValueError as ve:
         return jsonify({"error": str(ve)}), 400
