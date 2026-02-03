@@ -8,13 +8,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
-        html, body { margin: 0; padding: 0; background: #000; color: #fff; font-family: Poppins, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; line-height: 1.6; min-height: 100vh; }
+        html, body { margin: 0; padding: 0; background: #0a1f0a; color: #fff; font-family: Poppins, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; line-height: 1.6; min-height: 100vh; }
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
         :root {
             --wp-accent: #4A9EFF;
             --wp-accent-2: #2B7CE6;
-            --wp-bg: #0C0C0D;
+            --wp-bg: #0a1f0a;
             --wp-text: #fff;
             --wp-muted: rgba(255,255,255,.75);
             --wp-glass: rgba(255,255,255,.06);
@@ -361,9 +361,10 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
                                     var err = JSON.parse(t);
                                     showError(err.error || ('Error ' + xhr.status + ': ' + (t ? t.substring(0, 300) : 'Processing failed')));
                                 } catch (_) {
-                                    showError(t ? ('Error: ' + t.substring(0, 400)) : 'Processing failed (status ' + xhr.status + ')');
+                                    var fallback = 'Processing failed. Your file needs columns: Parcel Number and Parcel Notes (or DEP). Use .xlsx or .xlsm.';
+                                    showError(t && t.length < 600 ? ('Error: ' + t) : fallback);
                                 }
-                            }).catch(function() { showError('Processing failed (status ' + xhr.status + ')'); });
+                            }).catch(function() { showError('Processing failed. Need Parcel Number + Parcel Notes (or DEP). Use .xlsx or .xlsm.'); });
                         } else {
                             showError('Processing failed (status ' + xhr.status + ')');
                         }
