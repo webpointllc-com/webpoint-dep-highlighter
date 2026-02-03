@@ -62,7 +62,6 @@ def process_excel_file(file_bytes, original_filename):
         raise ValueError("Old .xls format is not supported. Please save the file as .xlsx or .xlsm and try again.")
 
     buf = io.BytesIO(file_bytes)
-    wb = None
     try:
         wb = openpyxl.load_workbook(buf, keep_vba=True)
     except Exception:
@@ -76,7 +75,7 @@ def process_excel_file(file_bytes, original_filename):
     if sheet.max_row < 2:
         raise ValueError("The sheet has no data rows (only a header or empty). Need at least one data row.")
 
-    # Find required columns (flexible header names)
+    # Find required columns (flexible header names, row 1)
     parcel_col = find_column_index(sheet, ["parcel number", "parcel #", "parcel", "parcel id", "parcel no"])
     dep_col = find_column_index(sheet, ["dep"])
 
@@ -85,12 +84,11 @@ def process_excel_file(file_bytes, original_filename):
             "Required columns not found. The first row must contain a column with 'Parcel' (or 'Parcel Number') "
             "and a column with 'DEP'. Check your header names and try again."
         )
-    
+
     highlighted_count = 0
     total_rows = sheet.max_row
-    
-    # Process rows - check consecutive pairs
-    for row_idx in range(2, total_rows):  # Start at 2 (after header), stop before last
+
+    for row_idx in range(2, total_rows):
         current_parcel = sheet.cell(row_idx, parcel_col).value
         current_dep = str(sheet.cell(row_idx, dep_col).value or "").strip()
         
