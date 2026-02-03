@@ -62,8 +62,10 @@ def process_excel_file(file_bytes, original_filename):
         raise ValueError("Old .xls format is not supported. Please save the file as .xlsx or .xlsm and try again.")
 
     buf = io.BytesIO(file_bytes)
+    # .xlsx: use keep_vba=False to avoid load failures. .xlsm: try keep_vba=True first.
+    keep_vba = file_ext == ".xlsm"
     try:
-        wb = openpyxl.load_workbook(buf, keep_vba=True)
+        wb = openpyxl.load_workbook(buf, keep_vba=keep_vba)
     except Exception:
         buf.seek(0)
         try:
@@ -75,20 +77,39 @@ def process_excel_file(file_bytes, original_filename):
     if sheet.max_row < 2:
         raise ValueError("The sheet has no data rows (only a header or empty). Need at least one data row.")
 
-    # Find required columns (flexible header names, row 1)
-    parcel_col = find_column_index(sheet, ["parcel number", "parcel #", "parcel", "parcel id", "parcel no"])
-    dep_col = find_column_index(sheet, ["dep"])
+    # Find header row: scan first 10 rows for Parcel + DEP (handles title rows in county files).
+    parcel_col = None
+    dep_col = None
+    header_row_idx = 1
+    for row_num in range(1, min(11, sheet.max_row + 1)):
+        row = sheet[row_num]
+        p_col = None
+        d_col = None
+        for idx, cell in enumerate(row, 1):
+            if not cell.value:
+                continue
+            val = str(cell.value).lower()
+            if not p_col and any(n in val for n in ["parcel number", "parcel #", "parcel", "parcel id", "parcel no"]):
+                p_col = idx
+            if not d_col and "dep" in val:
+                d_col = idx
+        if p_col and d_col:
+            parcel_col = p_col
+            dep_col = d_col
+            header_row_idx = row_num
+            break
 
     if not parcel_col or not dep_col:
         raise ValueError(
-            "Required columns not found. The first row must contain a column with 'Parcel' (or 'Parcel Number') "
-            "and a column with 'DEP'. Check your header names and try again."
+            "Required columns not found. Need a column with 'Parcel' (or 'Parcel Number') and a column with 'DEP' "
+            "in the first 10 rows. Check your header names and try again."
         )
 
+    data_start = header_row_idx + 1
     highlighted_count = 0
     total_rows = sheet.max_row
 
-    for row_idx in range(2, total_rows):
+    for row_idx in range(data_start, total_rows):
         current_parcel = sheet.cell(row_idx, parcel_col).value
         current_dep = str(sheet.cell(row_idx, dep_col).value or "").strip()
         

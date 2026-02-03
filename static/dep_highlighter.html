@@ -354,10 +354,15 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
                 xhr.onload = function() {
                     progressFill.style.width = '100%';
                     if (xhr.status !== 200) {
-                        try {
-                            var err = JSON.parse(xhr.responseText);
-                            showError(err.error || 'Processing failed');
-                        } catch (_) { showError('Processing failed'); }
+                        var blob = xhr.response;
+                        if (blob && blob.text) {
+                            blob.text().then(function(t) {
+                                try {
+                                    var err = JSON.parse(t);
+                                    showError(err.error || 'Processing failed');
+                                } catch (_) { showError(t || 'Processing failed'); }
+                            }).catch(function() { showError('Processing failed'); });
+                        } else { showError('Processing failed'); }
                         loadingOverlay.classList.remove('active');
                         return;
                     }
