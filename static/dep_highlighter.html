@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webpoint LLC Toolbox – DEP Highlighter</title>
+    <meta name="description" content="DEP Highlighter – duplicate parcel highlighting for Excel. Preserves VBA, macros, formulas. Webpoint LLC Toolbox." />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: #000; color: #fff; font-family: Poppins, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; line-height: 1.6; min-height: 100vh; }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+        :root {
+            --wp-accent: #4A9EFF;
+            --wp-accent-2: #2B7CE6;
+            --wp-bg: #0C0C0D;
+            --wp-text: #fff;
+            --wp-muted: rgba(255,255,255,.75);
+            --wp-glass: rgba(255,255,255,.06);
+            --wp-border: rgba(255,255,255,.12);
+            --wp-success: #2ECC71;
+            --wp-danger: #FF6363;
+        }
+
+        /* Top bar – Webpoint staple */
+        .wp-top {
+            position: fixed; left: 20px; right: 24px; top: 12px; z-index: 9999;
+            display: flex; justify-content: space-between; align-items: center; gap: 12px;
+            height: 44px; padding: 0 16px; border-radius: 12px;
+            background: rgba(0,0,0,0.4); backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .wp-top::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(74,158,255,0.3), transparent); border-radius: 12px 12px 0 0;
+        }
+        .wp-header-left { display: flex; align-items: center; }
+        .wp-logo { height: 24px; width: 24px; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+        .wp-logo img { width: 100%; height: 100%; object-fit: cover; }
+        .wp-brand {
+            font-size: 13px; font-weight: 700; margin-left: 6px; letter-spacing: -0.01em;
+            background: linear-gradient(135deg, var(--wp-accent) 0%, #fff 60%, var(--wp-accent) 100%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .wp-header-right { display: flex; align-items: center; gap: 8px; }
+        .wp-badge-small {
+            background: rgba(74,158,255,.08); border: 1px solid rgba(74,158,255,.28); color: var(--wp-accent);
+            padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 600;
+        }
+
+        /* Shell / main */
+        .wp-shell {
+            max-width: 720px; margin: 0 auto; padding: calc(44px + 20px) 24px 60px; opacity: 0; transition: opacity 1s ease 0.5s;
+        }
+        .wp-shell.visible { opacity: 1; }
+
+        /* Hero */
+        .wp-hero { text-align: center; margin-bottom: 32px; }
+        .wp-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(74,158,255,.08); border: 1px solid rgba(74,158,255,.28); color: var(--wp-accent);
+            padding: 8px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-bottom: 16px;
+            backdrop-filter: blur(12px);
+        }
+        .wp-title {
+            font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 12px;
+            background: linear-gradient(135deg, var(--wp-accent) 0%, #fff 45%, var(--wp-accent) 100%);
+            -webkit-background-clip: text; background-clip: text; color: transparent;
+        }
+        .wp-title::after {
+            content: ''; display: block; width: 60px; height: 2px; margin: 8px auto 0;
+            background: linear-gradient(90deg, transparent, var(--wp-accent), transparent); border-radius: 1px;
+        }
+        .wp-sub { font-size: clamp(0.9rem, 1.8vw, 1.05rem); color: var(--wp-muted); max-width: 560px; margin: 0 auto; }
+
+        /* Tool info – left accent */
+        .wp-form-section-label {
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--wp-accent); margin: 24px 0 12px;
+        }
+        .wp-form-section-label:first-child { margin-top: 0; }
+        .wp-tool-info {
+            background: rgba(255,255,255,.04); border: 1px solid var(--wp-border); border-left: 4px solid var(--wp-accent);
+            border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;
+        }
+        .wp-tool-info p { font-size: 13px; line-height: 1.6; color: var(--wp-muted); margin: 0; }
+        .wp-tool-info strong { color: rgba(255,255,255,.9); }
+        .wp-tool-info code { background: rgba(74,158,255,.15); color: var(--wp-accent); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        /* Drop zone – Webpoint staple */
+        .wp-drop {
+            background: var(--wp-glass); border: 2px dashed rgba(255,255,255,.25); border-radius: 16px;
+            padding: 40px 24px; min-height: 220px; display: grid; place-items: center; text-align: center; cursor: pointer;
+            transition: border-color .25s, transform .25s, background .25s; margin-bottom: 20px;
+        }
+        .wp-drop:hover { border-color: var(--wp-accent); background: rgba(74,158,255,.05); transform: translateY(-2px); }
+        .wp-drop.dragover { border-color: var(--wp-accent); background: rgba(74,158,255,.08); }
+        .wp-ico {
+            width: 60px; height: 60px; border-radius: 50%; background: rgba(74,158,255,.1); display: grid; place-items: center; margin: 0 auto 14px; transition: transform .25s, background .25s;
+        }
+        .wp-drop:hover .wp-ico { transform: scale(1.05); background: rgba(74,158,255,.14); }
+        .wp-ico svg { width: 28px; height: 28px; stroke: var(--wp-accent); stroke-width: 2; fill: none; }
+        .wp-drop-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+        .wp-drop-sub { font-size: 14px; color: var(--wp-muted); margin-bottom: 14px; }
+        .wp-types { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+        .wp-chip { background: rgba(74,158,255,.1); color: var(--wp-accent); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .file-input { display: none; }
+
+        /* Selected file */
+        .wp-selected-file {
+            margin-bottom: 20px; padding: 16px 20px; background: rgba(46,204,113,.08); border: 1px solid rgba(46,204,113,.3); border-radius: 12px;
+            display: none;
+        }
+        .wp-selected-file.active { display: block; }
+        .wp-selected-file .name { font-weight: 600; color: #fff; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+        .wp-selected-file .size { font-size: 13px; color: var(--wp-muted); }
+
+        /* CTA – Webpoint staple */
+        .wp-cta {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+            background: linear-gradient(135deg, var(--wp-accent), var(--wp-accent-2)); color: #fff; border: none; border-radius: 12px;
+            padding: 14px 24px; font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer;
+            box-shadow: 0 8px 24px rgba(74,158,255,.3); transition: transform .2s, box-shadow .2s;
+        }
+        .wp-cta:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(74,158,255,.38); }
+        .wp-cta:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* Error */
+        .wp-error {
+            margin-top: 20px; padding: 14px 18px; background: rgba(255,99,99,.1); border: 1px solid rgba(255,99,99,.3);
+            border-radius: 12px; color: var(--wp-danger); font-size: 13px; display: none;
+        }
+        .wp-error.active { display: block; }
+
+        /* Loading overlay – glass */
+        .loading-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.86); backdrop-filter: blur(10px);
+            display: none; align-items: center; justify-content: center; z-index: 9999; opacity: 0; visibility: hidden; transition: opacity .25s, visibility .25s;
+        }
+        .loading-overlay.active { display: flex; opacity: 1; visibility: visible; }
+        .loading-content {
+            background: rgba(12,12,13,.98); border: 1px solid var(--wp-border); border-radius: 20px; padding: 32px 40px; text-align: center; max-width: 380px; margin: 20px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .loading-content::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--wp-accent), transparent); border-radius: 20px 20px 0 0;
+        }
+        .spinner {
+            width: 52px; height: 52px; margin: 0 auto 20px; border: 3px solid var(--wp-glass); border-top-color: var(--wp-accent); border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+        .loading-subtext { font-size: 13px; color: var(--wp-muted); }
+        .progress-bar { width: 100%; height: 6px; background: var(--wp-glass); border-radius: 3px; margin-top: 20px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--wp-accent), var(--wp-accent-2)); width: 0%; transition: width .3s ease; border-radius: 3px; }
+
+        /* Success overlay – glass */
+        .success-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,.86); backdrop-filter: blur(10px);
+            display: none; align-items: center; justify-content: center; z-index: 9999; opacity: 0; visibility: hidden; transition: opacity .25s, visibility .25s;
+        }
+        .success-overlay.active { display: flex; opacity: 1; visibility: visible; }
+        .success-content {
+            background: rgba(12,12,13,.98); border: 1px solid var(--wp-border); border-radius: 20px; padding: 32px 40px; text-align: center; max-width: 380px; margin: 20px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .success-icon {
+            width: 64px; height: 64px; margin: 0 auto 20px; background: rgba(46,204,113,.2); border: 2px solid var(--wp-success);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; color: var(--wp-success); font-weight: 700;
+        }
+        .success-text { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+        .success-subtext { font-size: 13px; color: var(--wp-muted); margin-bottom: 24px; }
+        .download-btn {
+            width: 100%; padding: 14px 20px; background: linear-gradient(135deg, var(--wp-success), #27ae60); color: #fff; border: none; border-radius: 12px;
+            font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; margin-bottom: 10px;
+            box-shadow: 0 6px 20px rgba(46,204,113,.25); transition: transform .2s, box-shadow .2s;
+        }
+        .download-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(46,204,113,.35); }
+        .close-btn {
+            width: 100%; padding: 12px; background: transparent; color: var(--wp-muted); border: 1px solid var(--wp-border); border-radius: 12px;
+            font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: border-color .2s, color .2s;
+        }
+        .close-btn:hover { border-color: var(--wp-accent); color: #fff; }
+
+        /* Footer */
+        .wp-footer { text-align: center; padding: 24px 20px; font-size: 12px; color: var(--wp-muted); border-top: 1px solid var(--wp-border); margin-top: 40px; }
+        .wp-footer strong { color: rgba(255,255,255,.85); }
+
+        @media (max-width: 640px) {
+            .wp-top { left: 12px; right: 12px; padding: 0 12px; }
+            .wp-shell { padding-left: 16px; padding-right: 16px; }
+            .wp-drop { padding: 32px 16px; min-height: 180px; }
+            .loading-content, .success-content { padding: 24px 20px; margin: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Top bar – Webpoint staple -->
+    <div class="wp-top" role="region" aria-label="Header">
+        <div class="wp-header-left">
+            <div class="wp-logo">
+                <img src="https://cardiagrams.com/_assets/CBCF403E-A24C-45FC-8B7D-F2ACAD5A749F?q=60&w=1500&fit=crop&auto=compress,format" alt="Webpoint">
+            </div>
+            <span class="wp-brand">Webpoint LLC</span>
+        </div>
+        <div class="wp-header-right">
+            <span class="wp-badge-small">DEP Highlighter</span>
+        </div>
+    </div>
+
+    <main class="wp-shell" id="main">
+        <section class="wp-hero" aria-labelledby="dep-hero-title">
+            <div class="wp-badge">Toolbox</div>
+            <h1 class="wp-title" id="dep-hero-title">DEP Highlighter</h1>
+            <p class="wp-sub">Clone your Excel workbook, highlight consecutive duplicate DEP parcels in yellow. VBA, macros, formulas, and structure preserved. Download as <code>filename_WEBPT.processed.xlsx</code>.</p>
+        </section>
+
+        <div class="wp-form-section-label">Tool</div>
+        <div class="wp-tool-info">
+            <p><strong>Function:</strong> Identifies rows where consecutive rows share the same Parcel Number and both have &quot;DEP&quot; in the DEP column, then highlights both rows in yellow.<br><br>
+            <strong>Preserves:</strong> All VBA macros, formulas, charts, images, hidden code, and document structure.<br><br>
+            <strong>Output:</strong> Cloned file with <code>_WEBPT.processed</code> suffix; only highlighting is added.</p>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="wp-drop" id="dropzone" role="button" tabindex="0" aria-label="Drop Excel file or click to browse">
+            <div>
+                <div class="wp-ico" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="17,8 12,3 7,8"/>
+                        <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                </div>
+                <div class="wp-drop-title">Drop Excel File Here</div>
+                <div class="wp-drop-sub">or click to browse</div>
+                <div class="wp-types">
+                    <span class="wp-chip">XLSX</span><span class="wp-chip">XLSM</span><span class="wp-chip">XLS</span>
+                </div>
+            </div>
+        </div>
+        <input type="file" class="file-input" id="fileInput" accept=".xlsx,.xlsm,.xls" aria-label="Choose Excel file">
+
+        <div class="wp-selected-file" id="selectedFile">
+            <div class="name"><span id="fileNameText"></span></div>
+            <div class="size" id="fileSize"></div>
+        </div>
+
+        <button type="button" class="wp-cta" id="processBtn" disabled aria-label="Process document">
+            Process Document
+        </button>
+
+        <div class="wp-error" id="errorMessage"></div>
+    </main>
+
+    <footer class="wp-footer">
+        <strong>Webpoint LLC</strong> | Powered by intelligent document processing
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" aria-live="polite" aria-busy="true">
+        <div class="loading-content">
+            <div class="spinner" aria-hidden="true"></div>
+            <div class="loading-text">Processing Document...</div>
+            <div class="loading-subtext" id="loadingSubtext">Cloning document and applying DEP highlights</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Overlay -->
+    <div class="success-overlay" id="successOverlay" aria-live="polite">
+        <div class="success-content">
+            <div class="success-icon" aria-hidden="true">✓</div>
+            <div class="success-text">Processing Complete</div>
+            <div class="success-subtext" id="successSubtext">Your document is ready for download.</div>
+            <button type="button" class="download-btn" id="downloadBtn">Download Processed File</button>
+            <button type="button" class="close-btn" id="closeBtn">Process Another File</button>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // Same-origin when served from backend (e.g. online); localhost when testing locally
+var API_URL = (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.indexOf('localhost') === -1)
+    ? (window.location.origin + '/process') : 'http://localhost:5001/process';
+
+            let selectedFile = null;
+            let processedBlob = null;
+            let processedFilename = null;
+
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+            const selectedFileDiv = document.getElementById('selectedFile');
+            const fileNameText = document.getElementById('fileNameText');
+            const fileSize = document.getElementById('fileSize');
+            const processBtn = document.getElementById('processBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            const loadingSubtext = document.getElementById('loadingSubtext');
+            const progressFill = document.getElementById('progressFill');
+            const successOverlay = document.getElementById('successOverlay');
+            const successSubtext = document.getElementById('successSubtext');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const closeBtn = document.getElementById('closeBtn');
+            const main = document.getElementById('main');
+
+            if (main) main.classList.add('visible');
+
+            dropzone.addEventListener('click', function() { fileInput.click(); });
+            dropzone.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
+            fileInput.addEventListener('change', function(e) { handleFileSelect(e.target.files[0]); });
+
+            dropzone.addEventListener('dragover', function(e) { e.preventDefault(); dropzone.classList.add('dragover'); });
+            dropzone.addEventListener('dragleave', function() { dropzone.classList.remove('dragover'); });
+            dropzone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                handleFileSelect(e.dataTransfer.files[0]);
+            });
+
+            function handleFileSelect(file) {
+                if (!file) return;
+                var validExtensions = ['.xlsx', '.xlsm', '.xls'];
+                var name = file.name.toLowerCase();
+                var valid = validExtensions.some(function(ext) { return name.endsWith(ext); });
+                if (!valid) {
+                    showError('Invalid file type. Use .xlsx, .xlsm, or .xls');
+                    return;
+                }
+                selectedFile = file;
+                fileNameText.textContent = file.name;
+                fileSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
+                selectedFileDiv.classList.add('active');
+                processBtn.disabled = false;
+                errorMessage.classList.remove('active');
+            }
+
+            processBtn.addEventListener('click', function() {
+                if (!selectedFile) return;
+                loadingOverlay.classList.add('active');
+                progressFill.style.width = '0%';
+                var xhr = new XMLHttpRequest();
+                var formData = new FormData();
+                formData.append('file', selectedFile);
+
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) progressFill.style.width = (e.loaded / e.total * 90) + '%';
+                });
+                xhr.onload = function() {
+                    progressFill.style.width = '100%';
+                    if (xhr.status !== 200) {
+                        try {
+                            var err = JSON.parse(xhr.responseText);
+                            showError(err.error || 'Processing failed');
+                        } catch (_) { showError('Processing failed'); }
+                        loadingOverlay.classList.remove('active');
+                        return;
+                    }
+                    processedBlob = xhr.response;
+                    var disp = xhr.getResponseHeader('Content-Disposition');
+                    if (disp) {
+                        var m = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disp);
+                        if (m && m[1]) processedFilename = m[1].replace(/['"]/g, '');
+                    }
+                    if (!processedFilename) processedFilename = selectedFile.name.replace(/\.[^/.]+$/, '') + '_WEBPT.processed.xlsx';
+                    setTimeout(function() {
+                        loadingOverlay.classList.remove('active');
+                        successSubtext.textContent = 'File: ' + processedFilename;
+                        successOverlay.classList.add('active');
+                    }, 400);
+                };
+                xhr.onerror = function() {
+                    loadingOverlay.classList.remove('active');
+                    showError('Network error. Is the server running?');
+                };
+                xhr.responseType = 'blob';
+                xhr.open('POST', API_URL);
+                xhr.send(formData);
+
+                var p = 0;
+                var sim = setInterval(function() {
+                    p += 8;
+                    if (p < 90) progressFill.style.width = p + '%';
+                    else clearInterval(sim);
+                }, 150);
+            });
+
+            downloadBtn.addEventListener('click', function() {
+                if (!processedBlob || !processedFilename) return;
+                var url = URL.createObjectURL(processedBlob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = processedFilename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+
+            closeBtn.addEventListener('click', function() {
+                successOverlay.classList.remove('active');
+                selectedFile = null;
+                processedBlob = null;
+                processedFilename = null;
+                fileInput.value = '';
+                selectedFileDiv.classList.remove('active');
+                processBtn.disabled = true;
+                errorMessage.classList.remove('active');
+            });
+
+            function showError(msg) {
+                errorMessage.textContent = msg;
+                errorMessage.classList.add('active');
+            }
+        })();
+    </script>
+</body>
+</html>
