@@ -89,9 +89,11 @@ def process_excel_file(file_bytes, original_filename):
             if not cell.value:
                 continue
             val = str(cell.value).lower()
+            # Parcel: same as working Windows app (Parcel Number)
             if not p_col and any(n in val for n in ["parcel number", "parcel #", "parcel", "parcel id", "parcel no"]):
                 p_col = idx
-            if not d_col and "dep" in val:
+            # DEP column: "dep" OR "parcel notes" (working app uses "Parcel Notes" for DEP value)
+            if not d_col and ("dep" in val or ("parcel" in val and "notes" in val)):
                 d_col = idx
         if p_col and d_col:
             parcel_col = p_col
@@ -101,8 +103,8 @@ def process_excel_file(file_bytes, original_filename):
 
     if not parcel_col or not dep_col:
         raise ValueError(
-            "Required columns not found. Need a column with 'Parcel' (or 'Parcel Number') and a column with 'DEP' "
-            "in the first 10 rows. Check your header names and try again."
+            "Required columns not found. Need 'Parcel Number' (or Parcel) and 'DEP' or 'Parcel Notes' "
+            "in the first 10 rows. Same as the Windows DEP Highlighter."
         )
 
     data_start = header_row_idx + 1
