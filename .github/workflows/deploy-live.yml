@@ -1,5 +1,5 @@
 # Push to main = deploy to production (worldwide).
-# Triggers Render deploy so the live site gets the latest code.
+# Triggers Render deploy and tests the live /process function.
 # One-time: add RENDER_DEPLOY_HOOK_URL to this repo's Settings → Secrets and variables → Actions.
 
 name: Deploy to production (live)
@@ -8,6 +8,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch: {}  # Manual "Run workflow" from Actions tab
+
+env:
+  LIVE_URL: https://webpoint-dep-highlighter.onrender.com
 
 jobs:
   deploy:
@@ -29,3 +32,26 @@ jobs:
           else
             echo "RENDER_DEPLOY_HOOK_URL not set in repo secrets. Add it for auto-deploy on push."
           fi
+
+  test-live-function:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test live /process (global function)
+        run: |
+          echo "Testing live DEP Highlighter at ${{ env.LIVE_URL }}/process..."
+          HTTP=$(curl -sS -o /tmp/out.xlsx -w "%{http_code}" -X POST -F "file=@test_NY_NewYorkCity.xlsx" "${{ env.LIVE_URL }}/process")
+          if [ "$HTTP" != "200" ]; then
+            echo "FAIL: /process returned HTTP $HTTP"
+            exit 1
+          fi
+          SIZE=$(stat -c%s /tmp/out.xlsx 2>/dev/null || stat -f%z /tmp/out.xlsx)
+          if [ "$SIZE" -lt 100 ]; then
+            echo "FAIL: response too small ($SIZE bytes)"
+            exit 1
+          fi
+          echo "PASS: /process returned HTTP 200, $SIZE bytes (valid Excel)"
+          echo "Global function works."
