@@ -1,0 +1,21 @@
+DO REST – DOUBLE CHECK AND ADD CODE
+────────────────────────────────────────────────────────────────────
+
+1. TERMINAL (I opened a new one)
+   • If it shows "logged in" and push succeeded → you're POSTED. Go to step 2.
+   • If it shows "not logged in" or push failed → go to the Terminal where you ran auth_then_push.sh, press ENTER so the push runs there.
+
+2. RAILWAY
+   • Open: https://railway.app/new
+   • Deploy from GitHub repo → select: webpointllc-com/webpoint-dep-highlighter
+   • After deploy: Settings → Networking → Generate Domain
+   • Copy the URL (e.g. https://webpoint-dep-highlighter-production-xxxx.up.railway.app)
+
+3. CLIPBOARD (final embed code)
+   • In Terminal run (paste your Railway URL inside the quotes):
+     cd "/Users/billmccreary/Desktop/Webpoint_ Workspace/Toolbox/deploy"
+     ./COPY_EMBED_TO_CLIPBOARD.sh "YOUR_RAILWAY_URL"
+   • Or: open FINAL_SQUARESPACE_EMBED.html, replace YOUR_RAILWAY_URL with your URL, copy the iframe line, paste into SquareSpace Code block on webpointllc.com/webpoint-toolbox
+
+4. SQUARESPACE
+   • Edit webpoint-toolbox page → Add block → Code → Paste (Cmd+V) → Publish

@@ -1,0 +1,21 @@
+instruction dialogue cont
+────────────────────────────────────────────────────────────────────
+
+STEP 1 – GITHUB (browser)
+• Owner: webpointilc-com
+• Repository name: webpoint-dep-highlighter (already filled)
+• Description (optional): DEP Highlighter – Webpoint Toolbox. Clone Excel, highlight duplicate DEP parcels, preserve VBA/macros. Deploy to Railway/Render.
+• Leave "Add a README" UNCHECKED
+• Click the green "Create repository" button
+
+STEP 2 – TERMINAL (push)
+• Open Terminal (Cmd+Space → type Terminal → Enter)
+• Paste and run:
+
+cd "/Users/billmccreary/Desktop/Webpoint_ Workspace/Toolbox/deploy"
+git push -u origin main
+
+• If it asks for login: use GitHub username + Personal Access Token (or run: gh auth login, approve in browser, then run git push again)
+
+STEP 3 – REPLY
+• When push succeeds, reply "posted" and we’ll do Railway + SquareSpace embed HTML + clipboard.

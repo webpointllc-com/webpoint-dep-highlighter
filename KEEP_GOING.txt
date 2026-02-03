@@ -1,0 +1,17 @@
+KEEP GOING – next steps
+────────────────────────────────────────────────────────────────────
+
+1. RENDER (browser opened)
+   • Log in if needed → Create Blueprint / Retry with repo webpointllc-com/webpoint-dep-highlighter
+   • Wait for deploy to finish
+   • Copy your service URL (e.g. https://webpoint-dep-highlighter.onrender.com)
+
+2. TERMINAL (opened – waiting for URL)
+   • When prompted, paste that URL and press Enter
+   • Script puts final SquareSpace embed in clipboard
+
+3. SQUARESPACE
+   • Go to webpointllc.com → edit Webpoint Toolbox page
+   • Add block → Code → Paste (Cmd+V) → Publish
+
+Done. Embed code (with placeholder) is already in clipboard; after you run the script with your URL, the final embed will be in clipboard.

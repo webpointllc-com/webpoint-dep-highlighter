@@ -1,0 +1,24 @@
+FROM WHERE YOU ARE (Render Blueprint page)
+────────────────────────────────────────────────────────────────────
+
+We fixed render.yaml and pushed. On the SAME Render page:
+
+1. Click "Retry"
+   • Render will pull the updated render.yaml from GitHub and re-validate.
+
+2. If it passes
+   • Enter a Blueprint name (e.g. webpoint-dep-highlighter) if asked
+   • Click Create / Apply
+   • Wait for the deploy to finish
+
+3. When deploy is live
+   • Copy your service URL (e.g. https://webpoint-dep-highlighter.onrender.com)
+   • In Terminal run: ./PASTE_URL_THEN_RUN.sh
+   • Paste the URL when prompted, press Enter
+   • Clipboard now has the final embed
+
+4. SquareSpace
+   • webpointllc.com → Webpoint Toolbox → Edit → Add block → Code
+   • Paste (Cmd+V) → Publish
+
+If Retry still shows an error, tell me the exact message and we’ll fix it.

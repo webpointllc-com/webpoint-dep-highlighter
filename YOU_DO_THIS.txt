@@ -1,0 +1,29 @@
+REAL DEPLOY – YOUR ONE STEP (then Railway)
+
+1. CREATE THE REPO (in the GitHub tab that opened):
+   - Name: webpoint-dep-highlighter (already filled)
+   - Leave "Add a README" UNCHECKED
+   - Click "Create repository"
+
+2. PUSH FROM TERMINAL (will ask for your GitHub login):
+   Open Terminal and run:
+
+   cd "/Users/billmccreary/Desktop/Webpoint_ Workspace/Toolbox/deploy"
+   git remote remove origin 2>/dev/null; git remote add origin https://github.com/YOUR_GITHUB_USERNAME/webpoint-dep-highlighter.git
+   git push -u origin main
+
+   Replace YOUR_GITHUB_USERNAME with your actual GitHub username.
+   When prompted: use your GitHub username + Personal Access Token (not password), or sign in in the browser if it opens.
+
+3. RAILWAY (tab opened):
+   - New Project → Deploy from GitHub repo
+   - Select: webpoint-dep-highlighter
+   - After deploy: Settings → Networking → Generate Domain
+   - Copy the URL (e.g. https://webpoint-dep-highlighter-production-xxxx.up.railway.app)
+
+4. SQUARESPACE (webpointllc.com/webpoint-toolbox):
+   Add a Code block, paste (use your Railway URL):
+
+   <iframe src="YOUR-RAILWAY-URL" width="100%" height="920" style="border:none;border-radius:12px;min-height:920px;" title="Webpoint LLC – DEP Highlighter"></iframe>
+
+Done. Anyone on webpointllc.com/webpoint-toolbox can use the DEP Highlighter.

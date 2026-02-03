@@ -1,0 +1,15 @@
+CURSOR DID ALL OF THIS:
+────────────────────────────────────────────────────────────────────
+✓ Code pushed to GitHub (webpointllc-com/webpoint-dep-highlighter)
+✓ render.yaml added for Render one-click deploy, pushed
+✓ Render deploy page opened (repo pre-filled)
+✓ Terminal opened running PASTE_URL_THEN_RUN.sh (waiting for your URL)
+
+ONE STEP YOU DO (browser + one paste):
+────────────────────────────────────────────────────────────────────
+1. In the Render tab: log in if needed → click "Deploy" / "Apply"
+2. Wait for deploy to finish → copy your service URL (e.g. https://webpoint-dep-highlighter.onrender.com)
+3. In the Terminal window: paste that URL → press Enter
+4. Clipboard now has the final embed. Go to SquareSpace → webpoint-toolbox → Add Code block → Cmd+V → Publish
+
+That’s it. Cursor drove everything up to the point that needs your browser login and one paste.

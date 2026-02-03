@@ -1,3 +1,0 @@
-# Copy this into GitHub repo "Description" (Settings → General)
-
-DEP Highlighter – Webpoint Toolbox. Clone Excel, highlight duplicate DEP parcels, preserve VBA/macros. Deploy to Railway/Render.
