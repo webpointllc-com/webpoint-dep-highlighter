@@ -1,0 +1,11 @@
+---
+description: Always push and deploy to production (worldwide); full permission to deploy live
+alwaysApply: true
+---
+
+# Deploy live worldwide
+
+- **Default:** Changes to this repo are pushed to `origin main` and deployed to production. No local-only by default.
+- **Permission:** Full permission to push, trigger deploy, and make changes live on the public web (Render, webpointllc.com).
+- **Flow:** After editing DEP Highlighter server, static files, or config: commit, push to `origin main`. If GitHub Actions has `RENDER_DEPLOY_HOOK_URL` set, deploy runs automatically; otherwise run `./TRIGGER_DEPLOY.sh` (with deploy hook in `.env`) or trigger Manual Deploy on Render.
+- **Worldwide:** The live app is https://webpoint-dep-highlighter.onrender.com and https://webpointllc.com/webpoint-toolbox. Treat these as the real targets; local run is for testing only.

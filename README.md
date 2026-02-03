@@ -15,12 +15,15 @@ Backend + frontend in one deploy. Serves the DEP Highlighter UI at `/` and the p
 
 ---
 
-## Deploy (Railway or Render)
+## Deploy (push = live worldwide)
 
-1. **Push this repo** to GitHub (if not already).
-2. **Railway:** [railway.app](https://railway.app) → New Project → Deploy from GitHub repo → select this repo → Settings → Networking → **Generate Domain** → copy URL.
-3. **Render:** [render.com](https://render.com) → New Web Service → connect this repo → Build: `pip install -r requirements.txt` → Start: `gunicorn -w 1 -b 0.0.0.0:$PORT --timeout 120 dep_highlighter_server:app` → Deploy.
-4. **Embed on SquareSpace (webpoint-toolbox):** Add a Code block, paste:
+**We deploy to production on every push to `main`.** No local-only by default; full permission to push and make changes live.
+
+1. **Push this repo** to GitHub. If **RENDER_DEPLOY_HOOK_URL** is set in this repo’s **Settings → Secrets and variables → Actions**, the GitHub Action (`.github/workflows/deploy-live.yml`) triggers a Render deploy automatically. Otherwise trigger manually: run `./TRIGGER_DEPLOY.sh` (with deploy hook in `.env`) or use Render Dashboard → Manual Deploy.
+2. **One-time secret (optional but recommended):** Render Dashboard → webpoint-dep-highlighter → Settings → Deploy Hook → copy URL. In GitHub: repo **Settings → Secrets and variables → Actions → New repository secret** → name `RENDER_DEPLOY_HOOK_URL`, value = paste URL. After that, every push to `main` deploys to production.
+3. **Railway (alternative):** [railway.app](https://railway.app) → New Project → Deploy from GitHub repo → select this repo → Settings → Networking → **Generate Domain** → copy URL.
+4. **Render (manual):** [render.com](https://render.com) → New Web Service → connect this repo → Build: `pip install -r requirements.txt` → Start: `gunicorn -w 1 -b 0.0.0.0:$PORT --timeout 120 dep_highlighter_server:app` → Deploy.
+5. **Embed on SquareSpace (webpoint-toolbox):** Add a Code block, paste:
    ```html
    <iframe src="YOUR-DEPLOY-URL" width="100%" height="920" style="border:none;border-radius:12px;min-height:920px;" title="Webpoint LLC – DEP Highlighter"></iframe>
    ```
