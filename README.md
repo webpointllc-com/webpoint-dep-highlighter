@@ -1,5 +1,7 @@
 # Webpoint LLC – DEP Highlighter
 
+Push to `main` → GitHub Action triggers Render deploy → live worldwide.
+
 **Clone Excel workbooks, highlight consecutive duplicate DEP parcels in yellow. VBA, macros, formulas, and structure preserved. Output: `filename_WEBPT.processed.xlsx`.**
 
 Backend + frontend in one deploy. Serves the DEP Highlighter UI at `/` and the process API at `/process`. CORS allows **webpointllc.com** and **www.webpointllc.com** so the tool can be embedded on **webpointllc.com/webpoint-toolbox**.
