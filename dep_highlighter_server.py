@@ -2,6 +2,7 @@
 """
 DEP Highlighter Backend Server
 Same logic as working Windows app: Parcel Notes + Parcel Number, consecutive DEP rows highlighted.
+Deploy: push -> GitHub Action -> Render deploy hook -> live. (browser+terminal flow)
 """
 
 from flask import Flask, request, send_file, jsonify
