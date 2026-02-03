@@ -37,11 +37,18 @@ if not _FRONTEND_HTML.exists():
 YELLOW_FILL = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
 
-def find_column_index(sheet, column_name):
-    """Find column index by name (case-insensitive)"""
-    for idx, cell in enumerate(sheet[1], 1):
-        if cell.value and column_name.lower() in str(cell.value).lower():
-            return idx
+def find_column_index(sheet, possible_names):
+    """Find column index by header (case-insensitive). possible_names = list of strings to try."""
+    if isinstance(possible_names, str):
+        possible_names = [possible_names]
+    header_row = sheet[1]
+    for idx, cell in enumerate(header_row, 1):
+        if not cell.value:
+            continue
+        val = str(cell.value).lower()
+        for name in possible_names:
+            if name.lower() in val:
+                return idx
     return None
 
 
@@ -50,17 +57,34 @@ def process_excel_file(file_bytes, original_filename):
     Process Excel file and highlight consecutive duplicate DEP parcels
     PRESERVES: VBA, macros, formulas, charts, images, everything
     """
-    
-    # Load workbook with VBA preservation
-    wb = openpyxl.load_workbook(io.BytesIO(file_bytes), keep_vba=True)
+    file_ext = Path(original_filename).suffix.lower()
+    if file_ext == ".xls":
+        raise ValueError("Old .xls format is not supported. Please save the file as .xlsx or .xlsm and try again.")
+
+    buf = io.BytesIO(file_bytes)
+    wb = None
+    try:
+        wb = openpyxl.load_workbook(buf, keep_vba=True)
+    except Exception:
+        buf.seek(0)
+        try:
+            wb = openpyxl.load_workbook(buf, keep_vba=False)
+        except Exception as e:
+            raise ValueError(f"Could not open the Excel file. Make sure it is a valid .xlsx or .xlsm file. Details: {e}")
+
     sheet = wb.active
-    
-    # Find required columns
-    parcel_col = find_column_index(sheet, "parcel number")
-    dep_col = find_column_index(sheet, "dep")
-    
+    if sheet.max_row < 2:
+        raise ValueError("The sheet has no data rows (only a header or empty). Need at least one data row.")
+
+    # Find required columns (flexible header names)
+    parcel_col = find_column_index(sheet, ["parcel number", "parcel #", "parcel", "parcel id", "parcel no"])
+    dep_col = find_column_index(sheet, ["dep"])
+
     if not parcel_col or not dep_col:
-        raise ValueError("Required columns not found. Need 'Parcel Number' and 'DEP' columns.")
+        raise ValueError(
+            "Required columns not found. The first row must contain a column with 'Parcel' (or 'Parcel Number') "
+            "and a column with 'DEP'. Check your header names and try again."
+        )
     
     highlighted_count = 0
     total_rows = sheet.max_row
