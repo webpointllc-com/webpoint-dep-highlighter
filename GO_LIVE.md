@@ -28,6 +28,10 @@ So `MAKE_LIVE.sh` can trigger the deploy without opening the dashboard:
    ```
 6. Next time you run `./MAKE_LIVE.sh` it will trigger the deploy automatically.
 
+### Trigger deploy from GitHub (no push)
+
+**Actions** → **Deploy to production (live)** → **Run workflow** → **Run workflow**. Uses `RENDER_DEPLOY_HOOK_URL` from repo secrets. Render usually finishes in 2–5 min.
+
 ## Manual steps
 
 ### 1. Get latest code live on Render
