@@ -95,7 +95,12 @@ def _find_dep_and_parcel_columns(df):
 
 
 def highlight_logic(df):
-    """Highlight every row that has DEP and whose parcel number appears on at least one other row that also has DEP (connected via same parcel, anywhere in file)."""
+    """
+    Highlight only groups of 2+ CONSECUTIVE rows where:
+    1. Same property identifier (parcel number / Tax ID / account, etc.), and
+    2. DEP column is marked 'DEP'.
+    Single rows or non-consecutive same-parcel DEP rows are NOT highlighted.
+    """
     df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
     parcel_notes_col, parcel_col = _find_dep_and_parcel_columns(df)
@@ -109,25 +114,36 @@ def highlight_logic(df):
 
     parcel_notes = df[parcel_notes_col].fillna("").astype(str).str.strip().str.upper()
     parcel = df[parcel_col].fillna("").astype(str).str.strip()
-
-    # Rows marked DEP
     dep_mask = parcel_notes == "DEP"
-    # Parcel numbers that appear on at least 2 DEP rows (same parcel, DEP on another row somewhere)
-    parcel_dep_count = {}
-    for i in range(len(df)):
-        if dep_mask.iloc[i]:
-            p = parcel.iloc[i]
-            if p and p != "NAN":
-                parcel_dep_count[p] = parcel_dep_count.get(p, 0) + 1
-    parcels_with_parallel_dep = {p for p, c in parcel_dep_count.items() if c >= 2}
 
-    # Highlight every row that has DEP and its parcel is in that set
+    def _pid(val):
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return ""
+        s = str(val).strip()
+        return "" if s.upper() == "NAN" else s
+
+    # Find maximal runs of consecutive rows: same property ID AND DEP marked (groups of 2+ only)
+    runs = []  # list of (start_idx, end_idx) inclusive, length >= 2
+    i = 0
+    while i < len(df):
+        if not dep_mask.iloc[i]:
+            i += 1
+            continue
+        p = _pid(parcel.iloc[i])
+        if not p:
+            i += 1
+            continue
+        j = i
+        while j < len(df) and dep_mask.iloc[j] and _pid(parcel.iloc[j]) == p:
+            j += 1
+        if j - i >= 2:
+            runs.append((i, j - 1))
+        i = j
+
     flags = [False] * len(df)
-    for i in range(len(df)):
-        if dep_mask.iloc[i]:
-            p = parcel.iloc[i]
-            if p and p != "NAN" and p in parcels_with_parallel_dep:
-                flags[i] = True
+    for start, end in runs:
+        for idx in range(start, end + 1):
+            flags[idx] = True
     df["_highlight"] = flags
     return df
 
