@@ -1,0 +1,11 @@
+---
+description: TheTwins (deepshake) – use tooling to deploy; never ask user to Manual Deploy
+alwaysApply: true
+---
+
+# Agent uses tooling for deploy (TheTwins / deepshake)
+
+- **Do your job with tooling.** Use Render MCP (list_workspaces, list_services, list_logs, list_deploys, get_deploy), run.sh, TRIGGER_DEPLOY.sh, and scripts in this repo. Speak computer: run the scripts, pull logs, fix build/runtime errors, push, trigger deploy.
+- **Never ask the user** to open the Render dashboard, click Manual Deploy, or paste a deploy hook unless the only way to unblock is a one-time secret (e.g. deploy hook URL) that only they can copy. If deploy hook is missing, write instructions to ONE_TIME_DEPLOY_HOOK.txt and run everything else (build fix, push, pull logs).
+- **After code changes:** commit, push to main, run TRIGGER_DEPLOY.sh (or run.sh). If RENDER_DEPLOY_HOOK_URL is set in deploy/.env, deploy runs. If not, MCP list_deploys + list_logs (type=build) to confirm build state; fix build (e.g. .python-version for Python 3.11 if pandas fails on 3.13), push again.
+- **Workspace:** Render workspace name is bills.battleship. Set workspace when using Render MCP if prompted.

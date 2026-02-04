@@ -1,0 +1,7 @@
+One-time: enable run.sh / TRIGGER_DEPLOY.sh to trigger deploy without opening Render.
+
+1. Go to https://dashboard.render.com → bills.battleship → webpoint-dep-highlighter → Settings.
+2. Find "Deploy Hook" → copy the URL (https://api.render.com/deploy/srv-...?key=...).
+3. Run in Terminal:
+   echo 'RENDER_DEPLOY_HOOK_URL=paste_url_here' >> "/Users/billmccreary/Desktop/Webpoint_ Workspace/Toolbox/deploy/.env"
+4. After that, run.sh or TRIGGER_DEPLOY.sh will trigger deploy. No Manual Deploy needed.
