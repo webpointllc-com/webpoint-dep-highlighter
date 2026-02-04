@@ -90,7 +90,7 @@ def _find_dep_and_parcel_columns(df):
 
 
 def highlight_logic(df):
-    """Consecutive rows with DEP in notes column and matching parcel get highlighted. Supports NY RDM (Tax ID, Bill ID)."""
+    """Highlight every row that has DEP and whose parcel number appears on at least one other row that also has DEP (connected via same parcel, anywhere in file)."""
     df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
     parcel_notes_col, parcel_col = _find_dep_and_parcel_columns(df)
@@ -105,16 +105,24 @@ def highlight_logic(df):
     parcel_notes = df[parcel_notes_col].fillna("").astype(str).str.strip().str.upper()
     parcel = df[parcel_col].fillna("").astype(str).str.strip()
 
+    # Rows marked DEP
+    dep_mask = parcel_notes == "DEP"
+    # Parcel numbers that appear on at least 2 DEP rows (same parcel, DEP on another row somewhere)
+    parcel_dep_count = {}
+    for i in range(len(df)):
+        if dep_mask.iloc[i]:
+            p = parcel.iloc[i]
+            if p and p != "NAN":
+                parcel_dep_count[p] = parcel_dep_count.get(p, 0) + 1
+    parcels_with_parallel_dep = {p for p, c in parcel_dep_count.items() if c >= 2}
+
+    # Highlight every row that has DEP and its parcel is in that set
     flags = [False] * len(df)
-    for i in range(1, len(df)):
-        row_i_dep = parcel_notes.iloc[i] == "DEP"
-        row_i_minus_1_dep = parcel_notes.iloc[i - 1] == "DEP"
-        parcel_i = parcel.iloc[i]
-        parcel_i_minus_1 = parcel.iloc[i - 1]
-        parcels_match = (parcel_i == parcel_i_minus_1) and parcel_i != "" and parcel_i != "NAN"
-        if row_i_dep and row_i_minus_1_dep and parcels_match:
-            flags[i] = True
-            flags[i - 1] = True
+    for i in range(len(df)):
+        if dep_mask.iloc[i]:
+            p = parcel.iloc[i]
+            if p and p != "NAN" and p in parcels_with_parallel_dep:
+                flags[i] = True
     df["_highlight"] = flags
     return df
 
