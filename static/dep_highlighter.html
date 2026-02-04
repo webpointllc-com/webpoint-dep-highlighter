@@ -356,20 +356,28 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
                     if (xhr.status !== 200) {
                         var blob = xhr.response;
                         function showServerError(t) {
+                            var msg = '';
                             try {
                                 var err = JSON.parse(t);
-                                showError(err.details || err.error || ('Error ' + xhr.status));
+                                msg = err.details || err.error || ('Error ' + xhr.status);
+                                if (err.details && err.details !== err.error) msg = err.details;
                             } catch (_) {
-                                var fallback = 'Processing failed. Need Parcel column + DEP column (e.g. Parcel Notes). Use .xlsx or .xlsm.';
-                                showError((t && t.length > 0 && t.length < 800) ? t : fallback);
+                                if (t && typeof t === 'string' && t.length > 0) {
+                                    msg = 'Server response: ' + (t.length > 1200 ? t.substring(0, 1200) + '...' : t);
+                                } else {
+                                    msg = 'Processing failed (HTTP ' + xhr.status + '). No response body. Check browser console (F12).';
+                                }
                             }
+                            console.error('DEP Highlighter error:', xhr.status, t);
+                            showError(msg);
                         }
                         if (blob && typeof blob.text === 'function') {
-                            blob.text().then(showServerError).catch(function() {
-                                showError('Processing failed (status ' + xhr.status + '). Check file has Parcel + DEP columns, .xlsx or .xlsm.');
+                            blob.text().then(showServerError).catch(function(e) {
+                                console.error('DEP Highlighter: failed to read response', e);
+                                showError('Processing failed (HTTP ' + xhr.status + '). Could not read response. Open browser console (F12) for details.');
                             });
                         } else {
-                            showError('Processing failed (status ' + xhr.status + '). Check file columns and format.');
+                            showError('Processing failed (HTTP ' + xhr.status + '). Open browser console (F12) for details.');
                         }
                         loadingOverlay.classList.remove('active');
                         return;

@@ -245,12 +245,14 @@ def process_excel_file(file_bytes, original_filename):
 
 @app.errorhandler(500)
 def handle_500(e):
-    return jsonify({"error": str(e) if str(e) else "Internal server error"}), 500
+    msg = str(e) if str(e) else "Internal server error"
+    return jsonify({"error": msg, "details": msg}), 500
 
 
 @app.errorhandler(Exception)
 def handle_exception(e):
-    return jsonify({"error": str(e)}), 500
+    msg = str(e) or "Unexpected server error"
+    return jsonify({"error": msg, "details": msg}), 500
 
 
 @app.route("/health", methods=["GET"])
@@ -272,23 +274,23 @@ def process_file():
         print(f"[{datetime.now().isoformat()}] === Processing started ===", flush=True)
 
         if "file" not in request.files:
-            return jsonify({"error": "No file provided"}), 400
+            return jsonify({"error": "No file provided", "details": "No file provided"}), 400
         file = request.files["file"]
         if file.filename == "":
-            return jsonify({"error": "No file selected"}), 400
+            return jsonify({"error": "No file selected", "details": "No file selected"}), 400
 
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in (".xlsx", ".xlsm", ".xls"):
-            return jsonify({"error": "Invalid file type. Use .xlsx or .xlsm"}), 400
+            return jsonify({"error": "Invalid file type. Use .xlsx or .xlsm", "details": "Invalid file type. Use .xlsx or .xlsm"}), 400
         if file_ext == ".xls":
-            return jsonify({"error": "Old .xls not supported. Save as .xlsx or .xlsm"}), 400
+            return jsonify({"error": "Old .xls not supported. Save as .xlsx or .xlsm", "details": "Old .xls not supported. Save as .xlsx or .xlsm"}), 400
 
         file_bytes = file.read()
         file_size = len(file_bytes)
         print(f"File received: {file.filename}, size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
 
         if not file_bytes or file_size < 100:
-            return jsonify({"error": "File is empty or too small. Use a valid .xlsx or .xlsm file.", "details": "File too small"}), 400
+            return jsonify({"error": "File is empty or too small. Use a valid .xlsx or .xlsm file.", "details": "File is empty or too small (under 100 bytes). Use a valid .xlsx or .xlsm file."}), 400
 
         if file_size > MAX_FILE_SIZE:
             msg = f"File too large: {file_size / 1024 / 1024:.1f} MB. Max {MAX_FILE_SIZE // (1024*1024)} MB."
