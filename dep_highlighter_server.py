@@ -39,24 +39,42 @@ if not _FRONTEND_HTML.exists():
 YELLOW_FILL = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
 
-def highlight_logic(df):
-    """Same as Windows DEP Highlighter: consecutive rows with DEP in Parcel Notes and matching Parcel Number."""
+def _find_dep_and_parcel_columns(df):
+    """Find column that can contain 'DEP' (notes/dep col) and parcel identifier column. Works with NY RDM (Tax ID, Bill ID)."""
     df = df.copy()
     df.columns = [str(c).strip() for c in df.columns]
-
     parcel_notes_col = None
     parcel_col = None
+    # DEP column: Parcel Notes, DEP, Bill ID, Bill Type, Activity, Action (any col where value can be "DEP")
     for col in df.columns:
         col_upper = str(col).upper().strip()
         if "PARCEL" in col_upper and "NOTES" in col_upper:
             parcel_notes_col = col
-        elif "PARCEL" in col_upper and "NUMBER" in col_upper:
-            parcel_col = col
+            break
     if parcel_notes_col is None:
         for col in df.columns:
-            if "dep" in str(col).lower():
+            c = str(col).lower()
+            if c == "dep" or "bill id" in c or "bill type" in c:
                 parcel_notes_col = col
                 break
+        if parcel_notes_col is None:
+            for col in df.columns:
+                if "dep" in str(col).lower():
+                    parcel_notes_col = col
+                    break
+    # Parcel column: Tax ID, Client Request ID, Parcel Number, Parcel #, etc.
+    for col in df.columns:
+        col_upper = str(col).upper().strip()
+        c = str(col).lower()
+        if "TAX ID" in col_upper and "BILL" not in col_upper:
+            parcel_col = col
+            break
+        if "CLIENT REQUEST ID" in col_upper:
+            parcel_col = col
+            break
+        if "PARCEL" in col_upper and ("NUMBER" in col_upper or "NO" in col_upper or "#" in col_upper):
+            parcel_col = col
+            break
     if parcel_col is None:
         for col in df.columns:
             c = str(col).lower()
@@ -68,12 +86,20 @@ def highlight_logic(df):
                 if "parcel" in str(col).lower():
                     parcel_col = col
                     break
+    return parcel_notes_col, parcel_col
+
+
+def highlight_logic(df):
+    """Consecutive rows with DEP in notes column and matching parcel get highlighted. Supports NY RDM (Tax ID, Bill ID)."""
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    parcel_notes_col, parcel_col = _find_dep_and_parcel_columns(df)
     if parcel_notes_col is None or parcel_col is None:
-        cols_preview = ", ".join(str(c) for c in list(df.columns)[:15])
-        if len(df.columns) > 15:
+        cols_preview = ", ".join(str(c) for c in list(df.columns)[:20])
+        if len(df.columns) > 20:
             cols_preview += ", ..."
         raise ValueError(
-            "Required columns not found. Need Parcel (e.g. Parcel Number) and DEP (e.g. Parcel Notes or DEP). Your columns: " + cols_preview
+            "Required columns not found. Need a parcel column (e.g. Tax ID, Client Request ID, Parcel Number) and a DEP column (e.g. Bill ID, Parcel Notes, DEP). Your columns: " + cols_preview
         )
 
     parcel_notes = df[parcel_notes_col].fillna("").astype(str).str.strip().str.upper()
@@ -95,19 +121,39 @@ def highlight_logic(df):
 
 def process_excel_file(file_bytes, original_filename):
     """Read with pandas, run highlight logic, build a NEW workbook from scratch with yellow fill.
-    Output is minimal valid xlsx so Excel on Mac and Windows opens it."""
+    Output is minimal valid xlsx so Excel on Mac and Windows opens it.
+    Supports NY RDM-style docs: header on row 6, Tax ID / Bill ID columns."""
     file_ext = Path(original_filename).suffix.lower()
     if file_ext == ".xls":
         raise ValueError("Old .xls is not supported. Save as .xlsx or .xlsm.")
 
     buf = io.BytesIO(file_bytes)
-    try:
-        df = pd.read_excel(buf, engine="openpyxl", sheet_name=0)
-    except Exception as e:
-        raise ValueError(f"Cannot read Excel file. Is it a valid .xlsx or .xlsm? Details: {e}")
-
-    if df is None or len(df) == 0:
-        raise ValueError("The file has no data rows.")
+    df = None
+    for header_row in (0, 5, 4, 6, 3, 7):
+        try:
+            buf.seek(0)
+            df_try = pd.read_excel(buf, engine="openpyxl", sheet_name=0, header=header_row)
+            if df_try is None or len(df_try) == 0:
+                continue
+            n, p = _find_dep_and_parcel_columns(df_try)
+            if n is not None and p is not None:
+                df = df_try
+                break
+        except Exception:
+            continue
+    if df is None:
+        try:
+            buf.seek(0)
+            df = pd.read_excel(buf, engine="openpyxl", sheet_name=0)
+        except Exception as e:
+            raise ValueError(f"Cannot read Excel file. Is it a valid .xlsx or .xlsm? Details: {e}")
+        if df is None or len(df) == 0:
+            raise ValueError("The file has no data rows.")
+        n, p = _find_dep_and_parcel_columns(df)
+        if n is None or p is None:
+            raise ValueError(
+                "Could not find parcel column (e.g. Tax ID, Parcel Number) and DEP column (e.g. Bill ID, Parcel Notes). Try a file with headers like Tax ID and Bill ID."
+            )
 
     df_processed = highlight_logic(df)
     rows_to_highlight = set()
