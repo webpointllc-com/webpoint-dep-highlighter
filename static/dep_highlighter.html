@@ -341,9 +341,17 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
             }
 
             processBtn.addEventListener('click', function() {
-                if (!selectedFile) return;
+                if (!selectedFile) {
+                    showError('Please select a file first.');
+                    return;
+                }
+                if (!selectedFile.name || (selectedFile.size !== undefined && selectedFile.size < 100)) {
+                    showError('File is empty or too small. Choose a valid Excel file (.xlsx or .xlsm).');
+                    return;
+                }
                 loadingOverlay.classList.add('active');
                 progressFill.style.width = '0%';
+                errorMessage.classList.remove('active');
                 var xhr = new XMLHttpRequest();
                 var formData = new FormData();
                 formData.append('file', selectedFile);

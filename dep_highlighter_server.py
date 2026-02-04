@@ -270,19 +270,24 @@ def health_check():
 
 @app.route("/process", methods=["POST"])
 def process_file():
+    temp_path = None
     try:
         print(f"[{datetime.now().isoformat()}] === Processing started ===", flush=True)
 
         if "file" not in request.files:
-            return jsonify({"error": "No file provided", "details": "No file provided"}), 400
+            print("400: No file in request.files", flush=True)
+            return jsonify({"error": "No file provided", "details": "No file provided. The upload form did not include a file. Try selecting a file again and click Process."}), 400
         file = request.files["file"]
-        if file.filename == "":
-            return jsonify({"error": "No file selected", "details": "No file selected"}), 400
+        if file.filename == "" or not (file.filename or "").strip():
+            print("400: Empty filename", flush=True)
+            return jsonify({"error": "No file selected", "details": "No file selected. Please choose an Excel file (.xlsx or .xlsm) and try again."}), 400
 
         file_ext = Path(file.filename).suffix.lower()
         if file_ext not in (".xlsx", ".xlsm", ".xls"):
+            print(f"400: Invalid file type: {file_ext}", flush=True)
             return jsonify({"error": "Invalid file type. Use .xlsx or .xlsm", "details": "Invalid file type. Use .xlsx or .xlsm"}), 400
         if file_ext == ".xls":
+            print("400: .xls not supported", flush=True)
             return jsonify({"error": "Old .xls not supported. Save as .xlsx or .xlsm", "details": "Old .xls not supported. Save as .xlsx or .xlsm"}), 400
 
         file_bytes = file.read()
@@ -290,12 +295,24 @@ def process_file():
         print(f"File received: {file.filename}, size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
 
         if not file_bytes or file_size < 100:
+            print(f"400: File too small: {file_size} bytes", flush=True)
             return jsonify({"error": "File is empty or too small. Use a valid .xlsx or .xlsm file.", "details": "File is empty or too small (under 100 bytes). Use a valid .xlsx or .xlsm file."}), 400
 
         if file_size > MAX_FILE_SIZE:
             msg = f"File too large: {file_size / 1024 / 1024:.1f} MB. Max {MAX_FILE_SIZE // (1024*1024)} MB."
             print(msg, file=sys.stderr, flush=True)
             return jsonify({"error": msg, "details": msg}), 413
+
+        # Optional temp save for Render diagnostics (per doc: "File system issues - temp file writes failing")
+        try:
+            safe_name = "".join(c if c.isalnum() or c in "._-" else "_" for c in file.filename)
+            temp_path = os.path.join(tempfile.gettempdir(), safe_name)
+            print(f"Saving to temp file: {temp_path}", flush=True)
+            with open(temp_path, "wb") as f:
+                f.write(file_bytes)
+            print(f"Saved to: {temp_path}", flush=True)
+        except Exception as te:
+            print(f"Temp save failed (continuing in-memory): {te}", file=sys.stderr, flush=True)
 
         print("Loading workbook with openpyxl...", flush=True)
         output_buffer, output_filename, highlighted_count, total_rows, content_length = process_excel_file(
@@ -324,6 +341,13 @@ def process_file():
         error_msg = f"ERROR: {e}\n{traceback.format_exc()}"
         print(error_msg, file=sys.stderr, flush=True)
         return jsonify({"error": msg, "details": msg}), 500
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+                print(f"Cleaned up {temp_path}", flush=True)
+            except Exception:
+                pass
 
 
 @app.route("/", methods=["GET"])
