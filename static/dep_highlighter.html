@@ -23,11 +23,11 @@
             --wp-danger: #FF6363;
         }
 
-        /* Top bar – Webpoint staple */
+        /* Top bar – Webpoint staple, responsive */
         .wp-top {
-            position: fixed; left: 20px; right: 24px; top: 12px; z-index: 9999;
+            position: fixed; left: clamp(12px, 2vw, 24px); right: clamp(12px, 2vw, 24px); top: 12px; z-index: 9999;
             display: flex; justify-content: space-between; align-items: center; gap: 12px;
-            height: 44px; padding: 0 16px; border-radius: 12px;
+            height: clamp(40px, 6vw, 48px); padding: 0 clamp(12px, 2vw, 20px); border-radius: 12px;
             background: rgba(0,0,0,0.4); backdrop-filter: blur(16px);
             border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 4px 24px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.05);
@@ -50,9 +50,9 @@
             padding: 6px 12px; border-radius: 999px; font-size: 11px; font-weight: 600;
         }
 
-        /* Shell / main */
+        /* Shell / main – responsive, scales with viewport */
         .wp-shell {
-            max-width: 720px; margin: 0 auto; padding: calc(44px + 20px) 24px 60px; opacity: 0; transition: opacity 1s ease 0.5s;
+            max-width: min(800px, 94vw); margin: 0 auto; padding: calc(44px + 20px) clamp(16px, 4vw, 32px) clamp(40px, 8vh, 80px); opacity: 0; transition: opacity 1s ease 0.5s;
         }
         .wp-shell.visible { opacity: 1; }
 
@@ -65,7 +65,7 @@
             backdrop-filter: blur(12px);
         }
         .wp-title {
-            font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 12px;
+            font-size: clamp(1.75rem, 4vw + 0.5rem, 2.75rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 12px;
             background: linear-gradient(135deg, var(--wp-accent) 0%, #fff 45%, var(--wp-accent) 100%);
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
@@ -91,7 +91,7 @@
         /* Drop zone – Webpoint staple */
         .wp-drop {
             background: var(--wp-glass); border: 2px dashed rgba(255,255,255,.25); border-radius: 16px;
-            padding: 40px 24px; min-height: 220px; display: grid; place-items: center; text-align: center; cursor: pointer;
+            padding: clamp(24px, 5vw, 48px) clamp(16px, 4vw, 32px); min-height: min(280px, 35vh); display: grid; place-items: center; text-align: center; cursor: pointer;
             transition: border-color .25s, transform .25s, background .25s; margin-bottom: 20px;
         }
         .wp-drop:hover { border-color: var(--wp-accent); background: rgba(74,158,255,.05); transform: translateY(-2px); }
@@ -101,8 +101,8 @@
         }
         .wp-drop:hover .wp-ico { transform: scale(1.05); background: rgba(74,158,255,.14); }
         .wp-ico svg { width: 28px; height: 28px; stroke: var(--wp-accent); stroke-width: 2; fill: none; }
-        .wp-drop-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
-        .wp-drop-sub { font-size: 14px; color: var(--wp-muted); margin-bottom: 14px; }
+        .wp-drop-title { font-size: clamp(1rem, 2vw + 0.75rem, 1.25rem); font-weight: 700; margin-bottom: 6px; }
+        .wp-drop-sub { font-size: clamp(0.875rem, 1.5vw + 0.5rem, 1rem); color: var(--wp-muted); margin-bottom: 14px; }
         .wp-types { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
         .wp-chip { background: rgba(74,158,255,.1); color: var(--wp-accent); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
         .file-input { display: none; }
@@ -358,7 +358,7 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
                         function showServerError(t) {
                             try {
                                 var err = JSON.parse(t);
-                                showError(err.error || ('Error ' + xhr.status));
+                                showError(err.details || err.error || ('Error ' + xhr.status));
                             } catch (_) {
                                 var fallback = 'Processing failed. Need Parcel column + DEP column (e.g. Parcel Notes). Use .xlsx or .xlsm.';
                                 showError((t && t.length > 0 && t.length < 800) ? t : fallback);
@@ -380,7 +380,7 @@ var API_URL = (typeof window !== 'undefined' && window.location && window.locati
                         var m = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disp);
                         if (m && m[1]) processedFilename = m[1].replace(/['"]/g, '');
                     }
-                    if (!processedFilename) processedFilename = selectedFile.name.replace(/\.[^/.]+$/, '') + '_WEBPT.processed.xlsx';
+                    if (!processedFilename) processedFilename = selectedFile.name.replace(/\.[^/.]+$/, '') + '_Highlighted.xlsx';
                     setTimeout(function() {
                         loadingOverlay.classList.remove('active');
                         successSubtext.textContent = 'File: ' + processedFilename;

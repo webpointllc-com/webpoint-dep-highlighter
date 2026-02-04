@@ -14,10 +14,15 @@ import openpyxl
 from openpyxl.styles import PatternFill
 import io
 import os
+import sys
+import platform
 import tempfile
 from pathlib import Path
 import traceback
 from datetime import datetime
+
+# Max upload size (50MB) - helps avoid Render memory/timeout issues
+MAX_FILE_SIZE = 50 * 1024 * 1024
 
 app = Flask(__name__, static_folder=None)
 
@@ -251,15 +256,21 @@ def handle_exception(e):
 @app.route("/health", methods=["GET"])
 def health_check():
     return jsonify({
-        "status": "healthy",
+        "status": "ok",
         "service": "DEP Highlighter",
         "timestamp": datetime.now().isoformat(),
+        "python_version": platform.python_version(),
+        "openpyxl_installed": "openpyxl" in sys.modules,
+        "temp_writable": os.access("/tmp", os.W_OK),
+        "cwd": os.getcwd(),
     })
 
 
 @app.route("/process", methods=["POST"])
 def process_file():
     try:
+        print(f"[{datetime.now().isoformat()}] === Processing started ===", flush=True)
+
         if "file" not in request.files:
             return jsonify({"error": "No file provided"}), 400
         file = request.files["file"]
@@ -273,12 +284,23 @@ def process_file():
             return jsonify({"error": "Old .xls not supported. Save as .xlsx or .xlsm"}), 400
 
         file_bytes = file.read()
-        if not file_bytes or len(file_bytes) < 100:
-            return jsonify({"error": "File is empty or too small. Use a valid .xlsx or .xlsm file."}), 400
+        file_size = len(file_bytes)
+        print(f"File received: {file.filename}, size: {file_size} bytes ({file_size / 1024 / 1024:.2f} MB)", flush=True)
 
+        if not file_bytes or file_size < 100:
+            return jsonify({"error": "File is empty or too small. Use a valid .xlsx or .xlsm file.", "details": "File too small"}), 400
+
+        if file_size > MAX_FILE_SIZE:
+            msg = f"File too large: {file_size / 1024 / 1024:.1f} MB. Max {MAX_FILE_SIZE // (1024*1024)} MB."
+            print(msg, file=sys.stderr, flush=True)
+            return jsonify({"error": msg, "details": msg}), 413
+
+        print("Loading workbook with openpyxl...", flush=True)
         output_buffer, output_filename, highlighted_count, total_rows, content_length = process_excel_file(
             file_bytes, file.filename
         )
+        print(f"Processing complete. Rows: {total_rows}, highlighted: {highlighted_count}. Sending file: {output_filename}", flush=True)
+
         return send_file(
             output_buffer,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -287,14 +309,19 @@ def process_file():
             content_length=content_length,
         )
     except ValueError as ve:
-        return jsonify({"error": str(ve)}), 400
+        print(f"ValueError: {ve}", file=sys.stderr, flush=True)
+        return jsonify({"error": str(ve), "details": str(ve)}), 400
+    except MemoryError as e:
+        error_msg = f"MEMORY ERROR: {e}"
+        print(error_msg, file=sys.stderr, flush=True)
+        return jsonify({"error": "File too large for processing", "details": error_msg}), 413
     except Exception as e:
         msg = str(e).strip() or "Processing failed"
         if len(msg) > 400:
             msg = msg[:397] + "..."
-        print("Process error:", msg)
-        print(traceback.format_exc())
-        return jsonify({"error": msg}), 500
+        error_msg = f"ERROR: {e}\n{traceback.format_exc()}"
+        print(error_msg, file=sys.stderr, flush=True)
+        return jsonify({"error": msg, "details": msg}), 500
 
 
 @app.route("/", methods=["GET"])
