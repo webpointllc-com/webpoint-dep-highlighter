@@ -325,7 +325,6 @@ def process_file():
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True,
             download_name=output_filename,
-            content_length=content_length,
         )
     except ValueError as ve:
         print(f"ValueError: {ve}", file=sys.stderr, flush=True)
