@@ -1,5 +1,7 @@
 # Make the live server use the latest code (one-time or when you need a deploy)
 
+**Current code is on `main`.** To get it into production, trigger a deploy once (then it's live).
+
 The app at **https://webpoint-dep-highlighter.onrender.com** only updates when Render runs a new deploy. Code is already pushed to `main`; you just need to trigger a deploy.
 
 ## Option A – Deploy hook (recommended; then every push = auto deploy)
