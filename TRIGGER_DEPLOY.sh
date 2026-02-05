@@ -12,21 +12,28 @@ if [ -f .env ]; then
   set +a
 fi
 
-if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-  echo "RENDER_DEPLOY_HOOK_URL not set."
+if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+  echo "Triggering deploy on Render (deploy hook)..."
+  HTTP=$(curl -sS -o /tmp/render_deploy_resp.txt -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
+elif [ -n "$RENDER_API_KEY" ]; then
+  SVC_ID="${RENDER_SERVICE_ID:-srv-d616lm2li9vc73fqqps0}"
+  echo "Triggering deploy on Render (API)..."
+  HTTP=$(curl -sS -o /tmp/render_deploy_resp.txt -w "%{http_code}" \
+    -X POST "https://api.render.com/v1/services/$SVC_ID/deploys" \
+    -H "Authorization: Bearer $RENDER_API_KEY" \
+    -H "Content-Type: application/json" \
+    -d '{}')
+else
+  echo "RENDER_DEPLOY_HOOK_URL or RENDER_API_KEY not set."
   echo ""
-  echo "One-time setup:"
-  echo "  1. Go to https://dashboard.render.com and log in."
-  echo "  2. Open service 'webpoint-dep-highlighter' → Settings."
-  echo "  3. Find 'Deploy Hook' → copy the URL (looks like https://api.render.com/deploy/srv-...)."
-  echo "  4. Run: echo 'RENDER_DEPLOY_HOOK_URL=paste_url_here' >> $SCRIPT_DIR/.env"
-  echo "  5. Run this script again: $SCRIPT_DIR/TRIGGER_DEPLOY.sh"
+  echo "One-time setup: add to $SCRIPT_DIR/.env either:"
+  echo "  (A) RENDER_DEPLOY_HOOK_URL=https://api.render.com/deploy/srv-...?key=..."
+  echo "      from Render → webpoint-dep-highlighter → Settings → Deploy Hook"
+  echo "  (B) RENDER_API_KEY=your_key and RENDER_SERVICE_ID=srv-d616lm2li9vc73fqqps0"
   echo ""
   exit 1
 fi
 
-echo "Triggering deploy on Render (latest commit)..."
-HTTP=$(curl -sS -o /tmp/render_deploy_resp.txt -w "%{http_code}" -X POST "$RENDER_DEPLOY_HOOK_URL")
 if [ "$HTTP" = "200" ] || [ "$HTTP" = "201" ]; then
   echo "Deploy triggered (HTTP $HTTP). Wait 1–2 min then check https://webpoint-dep-highlighter.onrender.com"
 else
