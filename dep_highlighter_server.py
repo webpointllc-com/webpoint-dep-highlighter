@@ -43,98 +43,59 @@ if not _FRONTEND_HTML.exists():
 
 YELLOW_FILL = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 
+# Fixed columns per spec: Column D = Parcel Number, Column H = Parcel Notes (no auto-detect)
+COL_D_PARCEL = 3   # 0-based index (Excel column D = 4th column)
+COL_H_NOTES = 7    # 0-based index (Excel column H = 8th column)
+MIN_COLUMNS = 8    # Need at least D and H
 
-def _find_dep_and_parcel_columns(df):
-    """Find column that can contain 'DEP' (notes/dep col) and parcel identifier column. Works with NY RDM (Tax ID, Bill ID)."""
-    df = df.copy()
-    df.columns = [str(c).strip() for c in df.columns]
-    parcel_notes_col = None
-    parcel_col = None
-    # DEP column: Parcel Notes, DEP, Bill ID, Bill Type, Activity, Action (any col where value can be "DEP")
-    for col in df.columns:
-        col_upper = str(col).upper().strip()
-        if "PARCEL" in col_upper and "NOTES" in col_upper:
-            parcel_notes_col = col
-            break
-    if parcel_notes_col is None:
-        for col in df.columns:
-            c = str(col).lower()
-            if c == "dep" or "bill id" in c or "bill type" in c:
-                parcel_notes_col = col
-                break
-        if parcel_notes_col is None:
-            for col in df.columns:
-                if "dep" in str(col).lower():
-                    parcel_notes_col = col
-                    break
-    # Parcel column: Tax ID, Client Request ID, Parcel Number, Parcel #, etc.
-    for col in df.columns:
-        col_upper = str(col).upper().strip()
-        c = str(col).lower()
-        if "TAX ID" in col_upper and "BILL" not in col_upper:
-            parcel_col = col
-            break
-        if "CLIENT REQUEST ID" in col_upper:
-            parcel_col = col
-            break
-        if "PARCEL" in col_upper and ("NUMBER" in col_upper or "NO" in col_upper or "#" in col_upper):
-            parcel_col = col
-            break
-    if parcel_col is None:
-        for col in df.columns:
-            c = str(col).lower()
-            if "parcel" in c and ("number" in c or "#" in c or "no" in c or "id" in c):
-                parcel_col = col
-                break
-        if parcel_col is None:
-            for col in df.columns:
-                if "parcel" in str(col).lower():
-                    parcel_col = col
-                    break
-    return parcel_notes_col, parcel_col
+
+def _parcel_val(val):
+    """Normalize parcel value for comparison."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ""
+    s = str(val).strip()
+    return "" if s.upper() == "NAN" else s
+
+
+def _notes_has_dep(val):
+    """True if cell value contains the note 'DEP' (Parcel Notes column H)."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return False
+    return "DEP" in str(val).strip().upper()
 
 
 def highlight_logic(df):
     """
-    Highlight only groups of 2+ CONSECUTIVE rows where:
-    1. Same property identifier (parcel number / Tax ID / account, etc.), and
-    2. DEP column is marked 'DEP'.
-    Single rows or non-consecutive same-parcel DEP rows are NOT highlighted.
+    Core logic (exact spec):
+    - Column D = Parcel Number (same value).
+    - Column H = Parcel Notes (must contain the note "DEP").
+    Highlight a row ONLY when BOTH are true:
+    (1) Two or more consecutive rows have the same value in column D, and
+    (2) Column H has the note DEP on those rows.
+    No values added; only highlight existing rows that meet both rules.
     """
     df = df.copy()
-    df.columns = [str(c).strip() for c in df.columns]
-    parcel_notes_col, parcel_col = _find_dep_and_parcel_columns(df)
-    if parcel_notes_col is None or parcel_col is None:
-        cols_preview = ", ".join(str(c) for c in list(df.columns)[:20])
-        if len(df.columns) > 20:
-            cols_preview += ", ..."
+    if df.shape[1] < MIN_COLUMNS:
         raise ValueError(
-            "Required columns not found. Need a parcel column (e.g. Tax ID, Client Request ID, Parcel Number) and a DEP column (e.g. Bill ID, Parcel Notes, DEP). Your columns: " + cols_preview
+            f"Sheet must have at least 8 columns (Column D = Parcel Number, Column H = Parcel Notes). Found {df.shape[1]} columns."
         )
+    parcel = df.iloc[:, COL_D_PARCEL].fillna("").astype(str).str.strip()
+    notes = df.iloc[:, COL_H_NOTES].fillna("").astype(str).str.strip().str.upper()
+    dep_mask = notes.str.contains("DEP", na=False)
 
-    parcel_notes = df[parcel_notes_col].fillna("").astype(str).str.strip().str.upper()
-    parcel = df[parcel_col].fillna("").astype(str).str.strip()
-    dep_mask = parcel_notes == "DEP"
-
-    def _pid(val):
-        if val is None or (isinstance(val, float) and pd.isna(val)):
-            return ""
-        s = str(val).strip()
-        return "" if s.upper() == "NAN" else s
-
-    # Find maximal runs of consecutive rows: same property ID AND DEP marked (groups of 2+ only)
-    runs = []  # list of (start_idx, end_idx) inclusive, length >= 2
+    # Find maximal runs: consecutive rows with same column D value and column H contains DEP (length >= 2)
+    runs = []
     i = 0
     while i < len(df):
         if not dep_mask.iloc[i]:
             i += 1
             continue
-        p = _pid(parcel.iloc[i])
+        p = _parcel_val(parcel.iloc[i])
         if not p:
             i += 1
             continue
         j = i
-        while j < len(df) and dep_mask.iloc[j] and _pid(parcel.iloc[j]) == p:
+        while j < len(df) and dep_mask.iloc[j] and _parcel_val(parcel.iloc[j]) == p:
             j += 1
         if j - i >= 2:
             runs.append((i, j - 1))
@@ -165,8 +126,7 @@ def process_excel_file(file_bytes, original_filename):
             df_try = pd.read_excel(buf, engine="openpyxl", sheet_name=0, header=header_row)
             if df_try is None or len(df_try) == 0:
                 continue
-            n, p = _find_dep_and_parcel_columns(df_try)
-            if n is not None and p is not None:
+            if df_try.shape[1] >= MIN_COLUMNS:
                 df = df_try
                 header_row_used = header_row
                 break
@@ -180,10 +140,9 @@ def process_excel_file(file_bytes, original_filename):
             raise ValueError(f"Cannot read Excel file. Is it a valid .xlsx or .xlsm? Details: {e}")
         if df is None or len(df) == 0:
             raise ValueError("The file has no data rows.")
-        n, p = _find_dep_and_parcel_columns(df)
-        if n is None or p is None:
+        if df.shape[1] < MIN_COLUMNS:
             raise ValueError(
-                "Could not find parcel column (e.g. Tax ID, Parcel Number) and DEP column (e.g. Bill ID, Parcel Notes). Try a file with headers like Tax ID and Bill ID."
+                "Sheet must have at least 8 columns. Column D = Parcel Number, Column H = Parcel Notes."
             )
 
     df_processed = highlight_logic(df)
