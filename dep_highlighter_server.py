@@ -155,11 +155,12 @@ def process_excel_file(file_bytes, original_filename):
     extension = Path(original_filename).suffix
     output_filename = f"{base_name}_Highlighted{extension}"
 
-    # Clone: load original workbook, apply yellow only to highlighted rows, preserve VBA/sheets/metadata
-    output_bytes = None
+    # CLONE ONLY: Load original workbook, apply yellow fill ONLY to highlighted rows.
+    # No rebuild. 100% preservation of VBA macros, hidden/visible code, all sheets, metadata.
+    # All submitted files have exactly Column D = Parcel Number, Column H = Parcel Notes.
     try:
         buf.seek(0)
-        wb = openpyxl.load_workbook(buf, keep_vba=(file_ext == ".xlsm"))
+        wb = openpyxl.load_workbook(buf, keep_vba=(file_ext == ".xlsm"), data_only=False)
         sheet = wb.worksheets[0]
         # pandas index i -> Excel row (1-based): header at row header_row_used+1, data starts header_row_used+2
         for pandas_idx in rows_to_highlight:
@@ -180,40 +181,11 @@ def process_excel_file(file_bytes, original_filename):
                     os.unlink(tmp)
                 except OSError:
                     pass
-    except Exception:
-        output_bytes = None
-
-    # Fallback: build from scratch if clone failed (preserves open-on-Mac behavior)
-    if not output_bytes:
-        data_cols = [c for c in df_processed.columns if c != "_highlight"]
-        wb = openpyxl.Workbook()
-        ws = wb.active or wb.create_sheet("Sheet1", 0)
-        for c, col_name in enumerate(data_cols, 1):
-            ws.cell(row=1, column=c, value=col_name)
-        for pandas_idx, row in df_processed.iterrows():
-            excel_row = int(pandas_idx) + 2
-            for c, col in enumerate(data_cols, 1):
-                ws.cell(row=excel_row, column=c, value=row[col])
-                if pandas_idx in rows_to_highlight:
-                    ws.cell(row=excel_row, column=c).fill = YELLOW_FILL
-        tmp = None
-        try:
-            fd, tmp = tempfile.mkstemp(suffix=extension)
-            os.close(fd)
-            wb.save(tmp)
-            with open(tmp, "rb") as f:
-                output_bytes = f.read()
-        finally:
-            if tmp and os.path.exists(tmp):
-                try:
-                    os.unlink(tmp)
-                except OSError:
-                    pass
-        if not output_bytes:
-            buf_out = io.BytesIO()
-            wb.save(buf_out)
-            buf_out.seek(0)
-            output_bytes = buf_out.getvalue()
+    except Exception as e:
+        raise ValueError(
+            f"Cannot preserve workbook (VBA/macros/hidden code must be kept). Clone failed: {e}. "
+            "File must be valid .xlsx or .xlsm with at least 8 columns (Column D = Parcel Number, Column H = Parcel Notes)."
+        ) from e
 
     return io.BytesIO(output_bytes), output_filename, len(rows_to_highlight), len(df), len(output_bytes)
 
